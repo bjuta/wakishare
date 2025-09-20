@@ -35,6 +35,32 @@
 #wakiShareToast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#111;color:#fff;padding:.5rem .75rem;border-radius:8px;font-size:.875rem;opacity:0;pointer-events:none;transition:opacity .25s ease}
 #wakiShareToast.show{opacity:1}
 .waki-share svg,.waki-share svg *{opacity:1;display:inline-block;fill:currentColor}
+.waki-share-placement-overlay{--waki-gap:6px;--waki-radius:9999px}
+.waki-share-overlay-share .waki-btn{padding:.4rem;border-radius:999px;min-width:2.25rem;justify-content:center}
+.waki-share-overlay-share .waki-label{display:none}
+.waki-share-media{position:relative;display:inline-block;max-width:100%;--waki-overlay-gap:.5rem}
+.waki-share-media[data-display="block"]{display:block}
+.waki-share-media>img,.waki-share-media>video,.waki-share-media>iframe,.waki-share-media>a{display:block;max-width:100%}
+.waki-share-media.is-open{z-index:40}
+.waki-share-media .waki-share-overlay{position:absolute;z-index:45;display:flex;flex-direction:column;gap:.35rem;pointer-events:none}
+.waki-share-media .waki-share-overlay__toggle,.waki-share-media .waki-share-overlay__menu{pointer-events:auto}
+.waki-share-overlay[data-position="top-start"]{inset-block-start:var(--waki-overlay-gap);inset-inline-start:var(--waki-overlay-gap);align-items:flex-start}
+.waki-share-overlay[data-position="top-end"]{inset-block-start:var(--waki-overlay-gap);inset-inline-end:var(--waki-overlay-gap);align-items:flex-end}
+.waki-share-overlay[data-position="bottom-start"]{inset-block-end:var(--waki-overlay-gap);inset-inline-start:var(--waki-overlay-gap);align-items:flex-start}
+.waki-share-overlay[data-position="bottom-end"]{inset-block-end:var(--waki-overlay-gap);inset-inline-end:var(--waki-overlay-gap);align-items:flex-end}
+.waki-share-overlay[data-position="bottom-start"] .waki-share-overlay__menu,.waki-share-overlay[data-position="bottom-end"] .waki-share-overlay__menu{order:-1}
+.waki-share-overlay[data-position="center"]{inset-block-start:50%;inset-inline-start:50%;transform:translate(-50%,-50%);align-items:center}
+.waki-share-overlay__toggle{cursor:pointer;border:0;background:rgba(15,23,42,.92);color:#fff;padding:.35rem .65rem;border-radius:999px;font-size:.75rem;font-weight:600;line-height:1;box-shadow:0 8px 20px rgba(15,23,42,.25);transition:background .2s ease,box-shadow .2s ease,transform .2s ease}
+.waki-share-overlay__toggle:hover{transform:translateY(-1px)}
+.waki-share-overlay__toggle:focus-visible{outline:2px solid rgba(255,255,255,.9);outline-offset:2px;box-shadow:0 0 0 4px rgba(15,23,42,.35)}
+.waki-share-overlay__menu{background:rgba(17,24,39,.96);color:#fff;padding:.5rem;border-radius:12px;box-shadow:0 12px 30px rgba(15,23,42,.32);opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-4px);transition:opacity .2s ease,transform .2s ease,visibility .2s ease;max-width:min(100vw - 2rem,18rem)}
+.waki-share-overlay__menu:focus-visible{outline:2px solid rgba(255,255,255,.65);outline-offset:2px}
+.waki-share-overlay__menu .waki-share{--waki-gap:6px;flex-wrap:wrap;justify-content:flex-start}
+.waki-share-overlay__menu .waki-btn{min-width:2.25rem;justify-content:center}
+.waki-share-media.is-open .waki-share-overlay__menu{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0)}
+.waki-share-media[data-trigger="always"] .waki-share-overlay__menu{opacity:1;visibility:visible;pointer-events:auto;transform:none}
+.waki-share-media[data-trigger="always"] .waki-share-overlay__toggle{display:none}
+@media (max-width:640px){.waki-share-overlay__menu{max-width:min(100vw - 1.5rem,20rem)}.waki-share-overlay[data-position="center"]{inset-block-start:auto;inset-inline-start:50%;inset-block-end:var(--waki-overlay-gap);transform:translate(-50%,0)}}
 .waki-share .waki-count{display:inline-flex;align-items:center;justify-content:center;margin-left:.35rem;padding:.15rem .45rem;border-radius:9999px;font-size:.75rem;font-weight:600;line-height:1}
 .waki-style-solid .waki-count{background:rgba(255,255,255,.28);color:#fff}
 .waki-style-outline .waki-count,.waki-style-ghost .waki-count{background:rgba(17,24,39,.08);color:inherit}
