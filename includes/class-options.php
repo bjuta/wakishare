@@ -40,6 +40,15 @@ class Options
             'sticky_selectors'          => '.entry-content',
             'smart_share_enabled'       => 0,
             'smart_share_selectors'     => ".entry-content h2, .entry-content h3",
+            'smart_share_matrix'        => [
+                'US' => ['facebook', 'x', 'linkedin', 'reddit', 'email'],
+                'GB' => ['facebook', 'x', 'linkedin', 'email', 'copy'],
+                'CA' => ['facebook', 'x', 'linkedin', 'email', 'copy'],
+                'AU' => ['facebook', 'x', 'linkedin', 'email', 'copy'],
+                'IN' => ['whatsapp', 'facebook', 'telegram', 'email', 'copy'],
+                'BR' => ['whatsapp', 'facebook', 'telegram', 'email', 'copy'],
+                'DE' => ['whatsapp', 'facebook', 'linkedin', 'email', 'copy'],
+            ],
             'geo_source'                => 'auto',
             'enable_utm'                => 1,
             'utm_medium'                => 'social',
@@ -79,6 +88,7 @@ class Options
         $options['share_networks_default'] = $this->normalize_networks($options['share_networks_default']);
         $options['networks']               = implode(',', $options['share_networks_default']);
         $options['brand_colors']           = (int) $options['share_brand_colors'];
+        $options['smart_share_matrix']     = $this->normalize_matrix($options['smart_share_matrix']);
         $options['style']                  = $options['share_style'];
         $options['size']                   = $options['share_size'];
         $options['labels']                 = $options['share_labels'];
@@ -132,6 +142,10 @@ class Options
 
         $output['smart_share_enabled']   = !empty($input['smart_share_enabled']) ? 1 : 0;
         $output['smart_share_selectors'] = sanitize_textarea_field($input['smart_share_selectors'] ?? $defaults['smart_share_selectors']);
+        $output['smart_share_matrix']    = $this->normalize_matrix($input['smart_share_matrix'] ?? $defaults['smart_share_matrix']);
+        if (empty($output['smart_share_matrix'])) {
+            $output['smart_share_matrix'] = $this->normalize_matrix($defaults['smart_share_matrix']);
+        }
 
         $geo_source = sanitize_key($input['geo_source'] ?? $defaults['geo_source']);
         if (!in_array($geo_source, ['auto', 'ip', 'manual'], true)) {
@@ -188,5 +202,69 @@ class Options
         }, $value));
 
         return array_values(array_unique($value));
+    }
+
+    /**
+     * Normalise smart share matrix entries to a country => networks map.
+     *
+     * @param mixed $value Raw value from user input / database.
+     */
+    private function normalize_matrix($value): array
+    {
+        if (is_string($value)) {
+            $lines = preg_split('/[\r\n]+/', $value);
+            $pairs = [];
+
+            foreach ($lines as $line) {
+                $line = trim($line);
+
+                if ($line === '') {
+                    continue;
+                }
+
+                if (strpos($line, ':') === false) {
+                    continue;
+                }
+
+                [$country, $networks] = array_map('trim', explode(':', $line, 2));
+                $country               = strtoupper(substr($country, 0, 2));
+
+                if (!preg_match('/^[A-Z]{2}$/', $country)) {
+                    continue;
+                }
+
+                $pairs[$country] = $networks;
+            }
+
+            $value = $pairs;
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $matrix = [];
+
+        foreach ($value as $country => $networks) {
+            if (is_int($country)) {
+                continue;
+            }
+
+            $country = strtoupper(substr((string) $country, 0, 2));
+
+            if (!preg_match('/^[A-Z]{2}$/', $country)) {
+                continue;
+            }
+
+            $normalized = $this->normalize_networks($networks);
+
+            if (empty($normalized)) {
+                continue;
+            }
+
+            $matrix[$country] = $normalized;
+        }
+
+        return $matrix;
     }
 }

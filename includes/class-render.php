@@ -39,7 +39,13 @@ class Render
         $share_ctx = $this->current_share_context($atts);
         $allowed   = array_keys($map);
 
-        $networks = $this->prepare_networks($atts['networks'] ?? '', $allowed);
+        $geo       = $this->resolve_geo_country($opts, $context, $atts);
+        $matrix    = $opts['smart_share_matrix'] ?? [];
+        $networks  = $this->prepare_networks($atts['networks'] ?? '', $allowed);
+        if (empty($networks)) {
+            $networks = $this->networks_for_country($geo['country'], $matrix, $allowed);
+        }
+
         if (empty($networks)) {
             $defaults = $opts['share_networks_default'];
             if (!is_array($defaults) || empty($defaults)) {
@@ -95,7 +101,11 @@ class Render
 
         ob_start();
         ?>
-        <div class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr($style_inline); ?>">
+        <?php $data_attrs = $this->format_attributes([
+            'data-your-share-country'        => $geo['country'],
+            'data-your-share-country-source' => $geo['source'],
+        ]); ?>
+        <div class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr($style_inline); ?>"<?php echo $data_attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
             <?php foreach ($networks as $network) :
                 if (!isset($map[$network])) {
                     continue;
@@ -178,6 +188,136 @@ class Render
         $nets = array_values(array_intersect($nets, $allowed));
 
         return $nets;
+    }
+
+    private function networks_for_country(string $country, array $matrix, array $allowed): array
+    {
+        $country = strtoupper($country);
+
+        if ($country === '' || empty($matrix[$country])) {
+            return [];
+        }
+
+        return $this->prepare_networks($matrix[$country], $allowed);
+    }
+
+    private function resolve_geo_country(array $options, array $context, array $atts): array
+    {
+        $geo_source = $options['geo_source'] ?? 'auto';
+        $country    = '';
+        $source     = '';
+
+        if ($geo_source !== 'manual') {
+            $cf_header = $_SERVER['HTTP_CF_IPCOUNTRY'] ?? '';
+            if (is_string($cf_header)) {
+                $cf_header = strtoupper(substr(sanitize_text_field(wp_unslash($cf_header)), 0, 2));
+            } else {
+                $cf_header = '';
+            }
+
+            if (preg_match('/^[A-Z]{2}$/', $cf_header) && $cf_header !== 'XX') {
+                $country = $cf_header;
+                $source  = 'cloudflare';
+            }
+        }
+
+        if ($country === '' && $geo_source === 'auto') {
+            $accept_language = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '';
+            if (is_string($accept_language)) {
+                $accept_language = sanitize_text_field(wp_unslash($accept_language));
+            } else {
+                $accept_language = '';
+            }
+
+            $guessed = $this->country_from_accept_language($accept_language);
+            if ($guessed !== '') {
+                $country = $guessed;
+                $source  = 'accept-language';
+            }
+        }
+
+        $country = apply_filters('your_share_geo_country', $country, $geo_source, $options, $context, $atts);
+        if (!is_string($country)) {
+            $country = '';
+        }
+        $country = strtoupper(substr($country, 0, 2));
+
+        if (!preg_match('/^[A-Z]{2}$/', $country)) {
+            $country = '';
+        }
+
+        if ($country === '') {
+            $source = $source ?: 'unknown';
+        }
+
+        return [
+            'country' => $country,
+            'source'  => $source ?: 'unknown',
+        ];
+    }
+
+    private function country_from_accept_language(string $header): string
+    {
+        if ($header === '') {
+            return '';
+        }
+
+        $locales = explode(',', $header);
+
+        foreach ($locales as $locale) {
+            $locale = trim($locale);
+
+            if ($locale === '') {
+                continue;
+            }
+
+            $token = explode(';', $locale)[0];
+            $token = trim($token);
+
+            $country = $this->country_from_locale_token($token);
+
+            if ($country !== '') {
+                return $country;
+            }
+        }
+
+        return '';
+    }
+
+    private function country_from_locale_token(string $token): string
+    {
+        if ($token === '') {
+            return '';
+        }
+
+        $parts = preg_split('/[-_]/', $token);
+
+        if (!$parts || count($parts) < 2) {
+            return '';
+        }
+
+        $country = strtoupper(substr($parts[1], 0, 2));
+
+        if (!preg_match('/^[A-Z]{2}$/', $country)) {
+            return '';
+        }
+
+        return $country;
+    }
+
+    private function format_attributes(array $attributes): string
+    {
+        $output = '';
+
+        foreach ($attributes as $key => $value) {
+            if ($value === '' || $value === null) {
+                continue;
+            }
+
+            $output .= sprintf(' %s="%s"', esc_attr($key), esc_attr((string) $value));
+        }
+
+        return $output;
     }
 
     private function build_share_url(string $network, string $base_url, string $title): string

@@ -9,6 +9,87 @@
     window.open(url, 'yourShare', 'toolbar=0,status=0,width=' + w + ',height=' + h + ',top=' + top + ',left=' + left);
   }
 
+  function parseCountryFromLocale(locale){
+    if (!locale){
+      return '';
+    }
+
+    var token = (locale.split(';')[0] || '').trim();
+    if (!token){
+      return '';
+    }
+
+    token = token.replace('_', '-');
+    var parts = token.split('-');
+    if (parts.length < 2){
+      return '';
+    }
+
+    var country = (parts[1] || '').trim().slice(0, 2).toUpperCase();
+
+    if (!country || country.length !== 2 || !/^[A-Z]{2}$/.test(country)){
+      return '';
+    }
+
+    return country;
+  }
+
+  function hydrateGeo(){
+    var geo = window.yourShareGeo || {};
+    var wrappers = document.querySelectorAll('.waki-share');
+    var markupCountry = '';
+    var markupSource = '';
+
+    Array.prototype.forEach.call(wrappers, function(el){
+      if (markupCountry){
+        return;
+      }
+      var country = el.getAttribute('data-your-share-country');
+      if (country){
+        markupCountry = country.toUpperCase();
+        markupSource = el.getAttribute('data-your-share-country-source') || '';
+      }
+    });
+
+    if (!geo.country && markupCountry){
+      geo.country = markupCountry;
+      geo.source = markupSource || 'server';
+    }
+
+    if (!geo.country){
+      var guess = '';
+      if (Array.isArray(navigator.languages)){
+        for (var i = 0; i < navigator.languages.length; i++){
+          guess = parseCountryFromLocale(navigator.languages[i]);
+          if (guess){
+            break;
+          }
+        }
+      }
+      if (!guess && navigator.language){
+        guess = parseCountryFromLocale(navigator.language);
+      }
+
+      if (guess){
+        geo.country = guess;
+        geo.source = 'language';
+      }
+    }
+
+    if (geo.country){
+      Array.prototype.forEach.call(wrappers, function(el){
+        if (!el.getAttribute('data-your-share-country')){
+          el.setAttribute('data-your-share-country', geo.country);
+        }
+        if (!el.getAttribute('data-your-share-country-source')){
+          el.setAttribute('data-your-share-country-source', geo.source || 'language');
+        }
+      });
+    }
+
+    window.yourShareGeo = geo;
+  }
+
   function toast(msg){
     var text = msg || messages.copySuccess || 'Link copied';
     var toastEl = document.getElementById('wakiShareToast');
@@ -96,5 +177,15 @@
   });
 
   window.addEventListener('resize', updateFloatingVisibility);
-  document.addEventListener('DOMContentLoaded', updateFloatingVisibility);
+
+  function onReady(){
+    hydrateGeo();
+    updateFloatingVisibility();
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', onReady);
+  } else {
+    onReady();
+  }
 })();

@@ -40,13 +40,8 @@ class Shortcode
             $atts = [];
         }
 
-        $networks_default = $options['share_networks_default'];
-        if (is_array($networks_default)) {
-            $networks_default = implode(',', $networks_default);
-        }
-
         $atts = shortcode_atts([
-            'networks'     => $networks_default,
+            'networks'     => '',
             'labels'       => $options['share_labels'],
             'style'        => $options['share_style'],
             'size'         => $options['share_size'],
@@ -73,13 +68,8 @@ class Shortcode
             return;
         }
 
-        $networks_default = $options['share_networks_default'];
-        if (is_array($networks_default)) {
-            $networks_default = implode(',', $networks_default);
-        }
-
         $atts = [
-            'networks'     => $networks_default,
+            'networks'     => '',
             'labels'       => 'hide',
             'style'        => $options['share_style'],
             'size'         => 'sm',
