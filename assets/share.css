@@ -31,3 +31,8 @@
 #wakiShareToast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#111;color:#fff;padding:.5rem .75rem;border-radius:8px;font-size:.875rem;opacity:0;pointer-events:none;transition:opacity .25s ease}
 #wakiShareToast.show{opacity:1}
 .waki-share svg,.waki-share svg *{opacity:1;display:inline-block;fill:currentColor}
+.waki-share .waki-count{display:inline-flex;align-items:center;justify-content:center;margin-left:.35rem;padding:.15rem .45rem;border-radius:9999px;font-size:.75rem;font-weight:600;line-height:1}
+.waki-style-solid .waki-count{background:rgba(255,255,255,.28);color:#fff}
+.waki-style-outline .waki-count,.waki-style-ghost .waki-count{background:rgba(17,24,39,.08);color:inherit}
+.waki-share-total{display:flex;align-items:center;gap:.5rem;margin-right:auto;font-size:.875rem;font-weight:600}
+.waki-share-total .waki-total-value{font-size:1rem}

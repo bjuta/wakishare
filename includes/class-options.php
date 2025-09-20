@@ -58,6 +58,14 @@ class Options
             'analytics_events'          => 1,
             'analytics_console'         => 0,
             'analytics_ga4'             => 0,
+            'counts_enabled'            => 0,
+            'counts_show_badges'        => 1,
+            'counts_show_total'         => 1,
+            'counts_refresh_interval'   => 60,
+            'counts_facebook_app_id'    => '',
+            'counts_facebook_app_secret'=> '',
+            'counts_reddit_app_id'      => '',
+            'counts_reddit_app_secret'  => '',
         ];
 
         // Backwards compatibility aliases for legacy code paths.
@@ -97,6 +105,10 @@ class Options
         $options['floating_breakpoint']    = $options['sticky_breakpoint'];
         $options['gap']                    = (string) $options['share_gap'];
         $options['radius']                 = (string) $options['share_radius'];
+        $options['counts_enabled']         = !empty($options['counts_enabled']) ? 1 : 0;
+        $options['counts_show_badges']     = !empty($options['counts_show_badges']) ? 1 : 0;
+        $options['counts_show_total']      = !empty($options['counts_show_total']) ? 1 : 0;
+        $options['counts_refresh_interval']= max(0, (int) $options['counts_refresh_interval']);
 
         return $options;
     }
@@ -162,6 +174,14 @@ class Options
         $output['analytics_events']  = !empty($input['analytics_events']) ? 1 : 0;
         $output['analytics_console'] = !empty($input['analytics_console']) ? 1 : 0;
         $output['analytics_ga4']     = !empty($input['analytics_ga4']) ? 1 : 0;
+        $output['counts_enabled']    = !empty($input['counts_enabled']) ? 1 : 0;
+        $output['counts_show_badges'] = !empty($input['counts_show_badges']) ? 1 : 0;
+        $output['counts_show_total'] = !empty($input['counts_show_total']) ? 1 : 0;
+        $output['counts_refresh_interval'] = max(0, intval($input['counts_refresh_interval'] ?? $defaults['counts_refresh_interval']));
+        $output['counts_facebook_app_id']     = sanitize_text_field($input['counts_facebook_app_id'] ?? '');
+        $output['counts_facebook_app_secret'] = sanitize_text_field($input['counts_facebook_app_secret'] ?? '');
+        $output['counts_reddit_app_id']       = sanitize_text_field($input['counts_reddit_app_id'] ?? '');
+        $output['counts_reddit_app_secret']   = sanitize_text_field($input['counts_reddit_app_secret'] ?? '');
 
         // Legacy aliases to keep existing rendering logic functioning.
         $output['brand_colors']        = $output['share_brand_colors'];

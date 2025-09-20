@@ -1,5 +1,195 @@
 (function(){
   var messages = window.yourShareMessages || {};
+  var countsConfig = window.yourShareCountsConfig || {};
+  var refreshTimers = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+
+  function formatCount(value){
+    var num = parseInt(value, 10);
+    if (!isFinite(num) || num < 0){
+      num = 0;
+    }
+
+    if (num >= 1000000){
+      var millions = (num / 1000000).toFixed(1);
+      if (millions.slice(-2) === '.0'){
+        millions = millions.slice(0, -2);
+      }
+      return millions + 'M';
+    }
+
+    if (num >= 1000){
+      var thousands = (num / 1000).toFixed(1);
+      if (thousands.slice(-2) === '.0'){
+        thousands = thousands.slice(0, -2);
+      }
+      return thousands + 'K';
+    }
+
+    if (typeof num.toLocaleString === 'function'){
+      return num.toLocaleString();
+    }
+
+    return String(num);
+  }
+
+  function applyCounts(wrapper, payload){
+    if (!payload || typeof payload !== 'object'){
+      return;
+    }
+
+    var networks = payload.networks || {};
+    Object.keys(networks).forEach(function(key){
+      var networkData = networks[key] || {};
+      var total = parseInt(networkData.total, 10);
+      if (!isFinite(total) || total < 0){
+        total = 0;
+      }
+
+      var button = wrapper.querySelector('.waki-btn[data-net="' + key + '"]');
+      if (!button){
+        return;
+      }
+
+      var badge = button.querySelector('[data-your-share-count]');
+      if (!badge){
+        return;
+      }
+
+      badge.textContent = formatCount(total);
+      badge.setAttribute('data-value', total);
+    });
+
+    var totalValue = wrapper.querySelector('[data-your-share-total-value]');
+    if (totalValue){
+      var totalCount = parseInt(payload.total, 10);
+      if (!isFinite(totalCount) || totalCount < 0){
+        totalCount = 0;
+      }
+      totalValue.textContent = formatCount(totalCount);
+      totalValue.setAttribute('data-value', totalCount);
+    }
+  }
+
+  function buildCountsUrl(wrapper, force){
+    if (!countsConfig.restUrl){
+      return '';
+    }
+
+    var base = countsConfig.restUrl.replace(/\/$/, '');
+    var postId = wrapper.getAttribute('data-your-share-post');
+    if (postId === null){
+      return '';
+    }
+
+    var url = base + '/' + encodeURIComponent(postId || '0');
+    var params = [];
+    var networks = wrapper.getAttribute('data-your-share-networks') || '';
+    if (networks){
+      params.push('networks=' + encodeURIComponent(networks));
+    }
+    var shareUrl = wrapper.getAttribute('data-your-share-count-url') || '';
+    if (shareUrl){
+      params.push('shareUrl=' + encodeURIComponent(shareUrl));
+    }
+    if (force){
+      params.push('force=1');
+    }
+
+    if (params.length){
+      url += '?' + params.join('&');
+    }
+
+    return url;
+  }
+
+  function scheduleRefresh(wrapper){
+    if (!refreshTimers){
+      return;
+    }
+
+    var interval = parseInt(countsConfig.refreshInterval, 10);
+    if (!isFinite(interval) || interval <= 0){
+      return;
+    }
+
+    if (refreshTimers.has(wrapper)){
+      clearTimeout(refreshTimers.get(wrapper));
+    }
+
+    var timer = setTimeout(function(){
+      fetchCounts(wrapper, true);
+    }, interval * 60 * 1000);
+
+    refreshTimers.set(wrapper, timer);
+  }
+
+  function fetchCounts(wrapper, force){
+    if (!countsConfig || !countsConfig.enabled){
+      return;
+    }
+
+    if (!wrapper || wrapper.getAttribute('data-your-share-counts') !== '1'){
+      return;
+    }
+
+    var url = buildCountsUrl(wrapper, force);
+    if (!url){
+      return;
+    }
+
+    var options = { credentials: 'same-origin' };
+    if (countsConfig.nonce){
+      options.headers = { 'X-WP-Nonce': countsConfig.nonce };
+    }
+
+    fetch(url, options)
+      .then(function(response){
+        if (!response.ok){
+          throw new Error('Request failed');
+        }
+        return response.json();
+      })
+      .then(function(data){
+        applyCounts(wrapper, data);
+        scheduleRefresh(wrapper);
+      })
+      .catch(function(){});
+  }
+
+  function hydrateCounts(){
+    if (!countsConfig || !countsConfig.enabled){
+      return;
+    }
+
+    var wrappers = document.querySelectorAll('.waki-share[data-your-share-counts="1"]');
+    Array.prototype.forEach.call(wrappers, function(wrapper){
+      fetchCounts(wrapper, false);
+    });
+  }
+
+  function refreshCounts(target, force){
+    var elements = [];
+    if (!target){
+      elements = document.querySelectorAll('.waki-share[data-your-share-counts="1"]');
+    } else if (typeof target === 'string'){
+      elements = document.querySelectorAll(target);
+    } else if (target instanceof Element){
+      elements = [target];
+    } else if (typeof target.length === 'number'){
+      elements = target;
+    }
+
+    Array.prototype.forEach.call(elements, function(wrapper){
+      if (wrapper && wrapper.getAttribute && wrapper.getAttribute('data-your-share-counts') === '1'){
+        fetchCounts(wrapper, !!force);
+      }
+    });
+  }
+
+  window.yourShareCounts = window.yourShareCounts || {};
+  window.yourShareCounts.refresh = function(target, force){
+    refreshCounts(target, force);
+  };
 
   function openPopup(url){
     var w = 600;
@@ -181,6 +371,7 @@
   function onReady(){
     hydrateGeo();
     updateFloatingVisibility();
+    hydrateCounts();
   }
 
   if (document.readyState === 'loading'){
@@ -188,4 +379,10 @@
   } else {
     onReady();
   }
+
+  document.addEventListener('yourShareRefreshCounts', function(event){
+    var detail = event && event.detail ? event.detail : {};
+    var target = detail.target || detail.selector || (event.target && event.target.classList && event.target.classList.contains('waki-share') ? event.target : null);
+    refreshCounts(target, !!detail.force);
+  });
 })();

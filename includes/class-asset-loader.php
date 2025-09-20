@@ -23,13 +23,17 @@ class Asset_Loader
     /** @var string */
     private $admin_slug;
 
-    public function __construct(string $plugin_file, string $plugin_url, string $version, string $text_domain, string $admin_slug)
+    /** @var Options */
+    private $options;
+
+    public function __construct(string $plugin_file, string $plugin_url, string $version, string $text_domain, string $admin_slug, Options $options)
     {
         $this->plugin_file = $plugin_file;
         $this->plugin_url  = $plugin_url;
         $this->version     = $version;
         $this->text_domain = $text_domain;
         $this->admin_slug  = $admin_slug;
+        $this->options     = $options;
     }
 
     public function register_hooks(): void
@@ -64,6 +68,19 @@ class Asset_Loader
             [
                 'copySuccess'     => __('Link copied', $this->text_domain),
                 'shareUnsupported'=> __('Sharing not supported', $this->text_domain),
+            ]
+        );
+
+        $options = $this->options->all();
+
+        wp_localize_script(
+            $script_handle,
+            'yourShareCountsConfig',
+            [
+                'enabled'         => !empty($options['counts_enabled']),
+                'restUrl'         => esc_url_raw(rest_url('your-share/v1/counts')),
+                'nonce'           => wp_create_nonce('wp_rest'),
+                'refreshInterval' => max(0, (int) ($options['counts_refresh_interval'] ?? 0)),
             ]
         );
     }
