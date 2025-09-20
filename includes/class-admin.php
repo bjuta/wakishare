@@ -63,6 +63,7 @@ class Admin
         $this->register_follow_settings();
         $this->register_sticky_settings();
         $this->register_smart_settings();
+        $this->register_counts_settings();
         $this->register_analytics_settings();
     }
 
@@ -360,6 +361,62 @@ class Admin
             [$this, 'field_smart_share_summary'],
             $page,
             'your_share_smart_settings'
+        );
+    }
+
+    private function register_counts_settings(): void
+    {
+        $page = $this->page_id('counts');
+
+        add_settings_section(
+            'your_share_counts_general',
+            __('Caching & status', $this->text_domain),
+            function (): void {
+                echo '<p>' . esc_html__('Control if share counts are collected and how long cached values are retained.', $this->text_domain) . '</p>';
+            },
+            $page
+        );
+
+        add_settings_field(
+            'counts_general',
+            __('Status', $this->text_domain),
+            [$this, 'field_counts_general'],
+            $page,
+            'your_share_counts_general'
+        );
+
+        add_settings_section(
+            'your_share_counts_display',
+            __('Display', $this->text_domain),
+            function (): void {
+                echo '<p>' . esc_html__('Choose how share counts are surfaced alongside your buttons.', $this->text_domain) . '</p>';
+            },
+            $page
+        );
+
+        add_settings_field(
+            'counts_display',
+            __('Front end', $this->text_domain),
+            [$this, 'field_counts_display'],
+            $page,
+            'your_share_counts_display'
+        );
+
+        add_settings_section(
+            'your_share_counts_credentials',
+            __('API credentials', $this->text_domain),
+            function (): void {
+                echo '<p>' . esc_html__('Provide access tokens for networks that require authentication to return share counts.', $this->text_domain) . '</p>';
+            },
+            $page
+        );
+
+        add_settings_field(
+            'counts_credentials',
+            __('Providers', $this->text_domain),
+            [$this, 'field_counts_credentials'],
+            $page,
+            'your_share_counts_credentials'
         );
     }
 
@@ -846,6 +903,72 @@ class Admin
         <?php
     }
 
+    public function field_counts_general(): void
+    {
+        $values   = $this->values();
+        $field_id = $this->field_id('counts_refresh_interval');
+        ?>
+        <div class="your-share-field-stack">
+            <label class="your-share-toggle">
+                <input type="checkbox" name="<?php echo esc_attr($this->name('counts_enabled')); ?>" value="1" <?php checked($values['counts_enabled'], 1); ?>>
+                <?php esc_html_e('Enable share counts collection', $this->text_domain); ?>
+            </label>
+            <label for="<?php echo esc_attr($field_id); ?>">
+                <span><?php esc_html_e('Refresh interval', $this->text_domain); ?></span>
+                <div class="your-share-input-suffix">
+                    <input type="number" min="0" id="<?php echo esc_attr($field_id); ?>" name="<?php echo esc_attr($this->name('counts_refresh_interval')); ?>" value="<?php echo esc_attr($values['counts_refresh_interval']); ?>">
+                    <span><?php esc_html_e('minutes', $this->text_domain); ?></span>
+                </div>
+                <p class="description"><?php esc_html_e('Cached counts older than this threshold will be refreshed. Use 0 to bypass caching.', $this->text_domain); ?></p>
+            </label>
+        </div>
+        <?php
+    }
+
+    public function field_counts_display(): void
+    {
+        $values = $this->values();
+        ?>
+        <div class="your-share-field-stack">
+            <label class="your-share-toggle">
+                <input type="checkbox" name="<?php echo esc_attr($this->name('counts_show_badges')); ?>" value="1" <?php checked($values['counts_show_badges'], 1); ?>>
+                <?php esc_html_e('Show per-network badges beside each button', $this->text_domain); ?>
+            </label>
+            <label class="your-share-toggle">
+                <input type="checkbox" name="<?php echo esc_attr($this->name('counts_show_total')); ?>" value="1" <?php checked($values['counts_show_total'], 1); ?>>
+                <?php esc_html_e('Display the combined total above the button list', $this->text_domain); ?>
+            </label>
+            <p class="description"><?php esc_html_e('Counts reuse the last successful response if a provider is unavailable.', $this->text_domain); ?></p>
+        </div>
+        <?php
+    }
+
+    public function field_counts_credentials(): void
+    {
+        $values = $this->values();
+        ?>
+        <div class="your-share-field-grid">
+            <label for="<?php echo esc_attr($this->field_id('counts_facebook_app_id')); ?>">
+                <span><?php esc_html_e('Facebook App ID', $this->text_domain); ?></span>
+                <input type="text" id="<?php echo esc_attr($this->field_id('counts_facebook_app_id')); ?>" name="<?php echo esc_attr($this->name('counts_facebook_app_id')); ?>" value="<?php echo esc_attr($values['counts_facebook_app_id']); ?>" autocomplete="off">
+            </label>
+            <label for="<?php echo esc_attr($this->field_id('counts_facebook_app_secret')); ?>">
+                <span><?php esc_html_e('Facebook App Secret', $this->text_domain); ?></span>
+                <input type="text" id="<?php echo esc_attr($this->field_id('counts_facebook_app_secret')); ?>" name="<?php echo esc_attr($this->name('counts_facebook_app_secret')); ?>" value="<?php echo esc_attr($values['counts_facebook_app_secret']); ?>" autocomplete="off">
+            </label>
+            <label for="<?php echo esc_attr($this->field_id('counts_reddit_app_id')); ?>">
+                <span><?php esc_html_e('Reddit Client ID', $this->text_domain); ?></span>
+                <input type="text" id="<?php echo esc_attr($this->field_id('counts_reddit_app_id')); ?>" name="<?php echo esc_attr($this->name('counts_reddit_app_id')); ?>" value="<?php echo esc_attr($values['counts_reddit_app_id']); ?>" autocomplete="off">
+            </label>
+            <label for="<?php echo esc_attr($this->field_id('counts_reddit_app_secret')); ?>">
+                <span><?php esc_html_e('Reddit Client Secret', $this->text_domain); ?></span>
+                <input type="text" id="<?php echo esc_attr($this->field_id('counts_reddit_app_secret')); ?>" name="<?php echo esc_attr($this->name('counts_reddit_app_secret')); ?>" value="<?php echo esc_attr($values['counts_reddit_app_secret']); ?>" autocomplete="off">
+            </label>
+        </div>
+        <p class="description"><?php esc_html_e('Leave any field blank to rely on unauthenticated requests when supported by the provider.', $this->text_domain); ?></p>
+        <?php
+    }
+
     public function field_utm_settings(): void
     {
         $values = $this->values();
@@ -929,6 +1052,7 @@ class Admin
             'follow'    => __('Follow', $this->text_domain),
             'sticky'    => __('Sticky Bar', $this->text_domain),
             'smart'     => __('Smart Share', $this->text_domain),
+            'counts'    => __('Share Counts', $this->text_domain),
             'analytics' => __('Analytics & UTM', $this->text_domain),
         ];
     }

@@ -23,13 +23,17 @@ class Render
     /** @var string */
     private $text_domain;
 
-    public function __construct(Options $options, Networks $networks, UTM $utm, Icons $icons, string $text_domain)
+    /** @var Counts|null */
+    private $counts;
+
+    public function __construct(Options $options, Networks $networks, UTM $utm, Icons $icons, string $text_domain, ?Counts $counts = null)
     {
         $this->options     = $options;
         $this->networks    = $networks;
         $this->utm         = $utm;
         $this->icons       = $icons;
         $this->text_domain = $text_domain;
+        $this->counts      = $counts;
     }
 
     public function render(array $context, array $atts): string
@@ -99,13 +103,30 @@ class Render
         $title = $share_ctx['title'];
         $base  = $share_ctx['url'];
 
+        $counts_state = $this->prepare_counts_state($opts, $networks, $share_ctx);
+
+        if ($counts_state['enabled']) {
+            $classes[] = 'waki-has-counts';
+        }
+
         ob_start();
         ?>
         <?php $data_attrs = $this->format_attributes([
             'data-your-share-country'        => $geo['country'],
             'data-your-share-country-source' => $geo['source'],
+            'data-your-share-counts'         => $counts_state['enabled'] ? '1' : '',
+            'data-your-share-post'           => $counts_state['post'],
+            'data-your-share-networks'       => $counts_state['network_list'],
+            'data-your-share-count-url'      => $counts_state['url'],
+            'data-your-share-count-ttl'      => $counts_state['ttl'],
         ]); ?>
         <div class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr($style_inline); ?>"<?php echo $data_attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+            <?php if ($counts_state['enabled'] && !empty($opts['counts_show_total'])) : ?>
+                <div class="waki-share-total" data-your-share-total>
+                    <span class="waki-total-label"><?php esc_html_e('Total shares', $this->text_domain); ?></span>
+                    <span class="waki-total-value" data-your-share-total-value data-value="<?php echo esc_attr((string) $counts_state['total']); ?>"><?php echo esc_html($this->format_count($counts_state['total'])); ?></span>
+                </div>
+            <?php endif; ?>
             <?php foreach ($networks as $network) :
                 if (!isset($map[$network])) {
                     continue;
@@ -120,6 +141,7 @@ class Render
                     $href    = $this->build_share_url($network, $utm_url, $title);
                 }
 
+                $count_value = $counts_state['networks'][$network]['total'] ?? 0;
                 $attr = [
                     'class'      => 'waki-btn',
                     'data-net'   => esc_attr($network),
@@ -140,6 +162,9 @@ class Render
                 <a <?php foreach ($attr as $key => $value) { echo esc_attr($key) . '="' . esc_attr($value) . '" '; } ?>>
                     <?php echo $this->icons->svg($network); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                     <span class="waki-label"><?php echo esc_html($label); ?></span>
+                    <?php if ($counts_state['enabled'] && !empty($opts['counts_show_badges'])) : ?>
+                        <span class="waki-count" data-your-share-count="<?php echo esc_attr($network); ?>" data-value="<?php echo esc_attr((string) $count_value); ?>"><?php echo esc_html($this->format_count($count_value)); ?></span>
+                    <?php endif; ?>
                 </a>
             <?php endforeach; ?>
         </div>
@@ -415,6 +440,78 @@ class Render
         }
 
         return $output;
+    }
+
+    private function prepare_counts_state(array $options, array $networks, array $share_ctx): array
+    {
+        $post_id = $share_ctx['post'] instanceof \WP_Post ? (int) $share_ctx['post']->ID : 0;
+        $url     = $share_ctx['url'];
+
+        $trackable = array_values(array_filter($networks, static function ($network) {
+            return !in_array($network, ['copy', 'native'], true);
+        }));
+
+        $state = [
+            'enabled'      => false,
+            'total'        => 0,
+            'ttl'          => '',
+            'networks'     => [],
+            'post'         => $post_id > 0 ? (string) $post_id : ($trackable ? '0' : ''),
+            'network_list' => $trackable ? implode(',', $trackable) : '',
+            'url'          => $trackable ? esc_url_raw($url) : '',
+        ];
+
+        if (!$this->counts instanceof Counts) {
+            return $state;
+        }
+
+        if (empty($options['counts_enabled']) || empty($trackable)) {
+            return $state;
+        }
+
+        $counts = $this->counts->get_counts($post_id, $url, $trackable);
+
+        if (empty($counts['enabled'])) {
+            return $state;
+        }
+
+        foreach ($trackable as $network) {
+            if (!isset($counts['networks'][$network])) {
+                $counts['networks'][$network] = [
+                    'total' => 0,
+                ];
+            }
+        }
+
+        $state['enabled']  = true;
+        $state['networks'] = $counts['networks'];
+        $state['total']    = isset($counts['total']) ? (int) $counts['total'] : 0;
+        $state['ttl']      = isset($counts['ttl']) ? (int) $counts['ttl'] : 0;
+
+        return $state;
+    }
+
+    private function format_count(int $value): string
+    {
+        if ($value >= 1000000) {
+            $formatted = round($value / 1000000, 1);
+            if (abs($formatted - floor($formatted)) < 0.1) {
+                $formatted = (int) $formatted;
+            }
+
+            return sprintf('%sM', $formatted);
+        }
+
+        if ($value >= 1000) {
+            $formatted = round($value / 1000, 1);
+            if (abs($formatted - floor($formatted)) < 0.1) {
+                $formatted = (int) $formatted;
+            }
+
+            return sprintf('%sK', $formatted);
+        }
+
+        return number_format_i18n($value);
     }
 
     private function build_share_url(string $network, string $base_url, string $title): string
