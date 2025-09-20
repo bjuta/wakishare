@@ -20,8 +20,13 @@ class Render
     /** @var Icons */
     private $icons;
 
+    /** @var Reactions */
+    private $reactions;
+
     /** @var string */
     private $text_domain;
+
+    public function __construct(Options $options, Networks $networks, UTM $utm, Icons $icons, Reactions $reactions, string $text_domain)
 
     /** @var bool */
     private $media_config_localized = false;
@@ -32,11 +37,13 @@ class Render
     private $counts;
 
     public function __construct(Options $options, Networks $networks, UTM $utm, Icons $icons, string $text_domain, ?Counts $counts = null)
+
     {
         $this->options     = $options;
         $this->networks    = $networks;
         $this->utm         = $utm;
         $this->icons       = $icons;
+        $this->reactions   = $reactions;
         $this->text_domain = $text_domain;
         add_action('wp_enqueue_scripts', [$this, 'register_media_overlays'], 20);
         $this->counts      = $counts;
@@ -185,6 +192,17 @@ class Render
                 </a>
             <?php endforeach; ?>
         </div>
+        <?php
+        if ($placement === 'inline') {
+            $post_id = 0;
+
+            if (isset($share_ctx['post']) && $share_ctx['post'] instanceof \WP_Post) {
+                $post_id = (int) $share_ctx['post']->ID;
+            }
+
+            echo $this->reactions->render_inline($post_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        }
+        ?>
         <?php
         return trim((string) ob_get_clean());
     }

@@ -32,6 +32,18 @@
 .waki-share-floating{position:fixed;top:40%;transform:translateY(-50%);z-index:9999;display:flex;flex-direction:column;background:transparent}
 .waki-share-floating.pos-left{left:12px}
 .waki-share-floating.pos-right{right:12px}
+.waki-reactions{--waki-reaction-gap:10px;--waki-reaction-radius:9999px;display:flex;flex-wrap:wrap;gap:var(--waki-reaction-gap);align-items:center}
+.waki-reactions-inline{margin-top:.85rem}
+.waki-reactions-floating{position:fixed;bottom:24px;z-index:9999;display:flex;align-items:center;gap:var(--waki-reaction-gap);background:#fff;border-radius:var(--waki-reaction-radius);box-shadow:0 15px 30px rgba(15,23,42,.16);padding:.55rem .9rem}
+.waki-reactions-floating.pos-left{left:18px;right:auto}
+.waki-reactions-floating.pos-right{right:18px;left:auto}
+.waki-reaction{display:inline-flex;align-items:center;gap:.4rem;border:1px solid rgba(15,23,42,.14);border-radius:var(--waki-reaction-radius);background:#f8fafc;padding:.35rem .65rem;font-size:.85rem;font-weight:600;color:#1f2937;cursor:pointer;transition:transform .1s ease,background .2s ease,border-color .2s ease,box-shadow .2s ease}
+.waki-reaction:hover{background:#e2e8f0;border-color:rgba(15,23,42,.25);transform:translateY(-1px)}
+.waki-reaction:focus{outline:2px solid #2563eb;outline-offset:2px}
+.waki-reaction.is-active{background:#2563eb;border-color:#2563eb;color:#fff;box-shadow:0 10px 25px rgba(37,99,235,.35)}
+.waki-reaction-emoji{font-size:1.15rem;line-height:1}
+.waki-reaction-label{font-size:.8rem}
+.waki-reaction-count{font-size:.8rem;font-variant-numeric:tabular-nums;color:rgba(15,23,42,.8)}
 #wakiShareToast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#111;color:#fff;padding:.5rem .75rem;border-radius:8px;font-size:.875rem;opacity:0;pointer-events:none;transition:opacity .25s ease}
 #wakiShareToast.show{opacity:1}
 .waki-share svg,.waki-share svg *{opacity:1;display:inline-block;fill:currentColor}
