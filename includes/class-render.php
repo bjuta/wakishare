@@ -37,7 +37,16 @@ class Render
         $opts      = $this->options->all();
         $map       = $this->networks->all();
         $share_ctx = $this->current_share_context($atts);
-        $networks  = $this->prepare_networks($atts['networks'] ?? '', array_keys($map));
+        $allowed   = array_keys($map);
+
+        $networks = $this->prepare_networks($atts['networks'] ?? '', $allowed);
+        if (empty($networks)) {
+            $defaults = $opts['share_networks_default'];
+            if (!is_array($defaults) || empty($defaults)) {
+                $defaults = $this->options->defaults()['share_networks_default'];
+            }
+            $networks = $this->prepare_networks($defaults, $allowed);
+        }
 
         if (!in_array('native', $networks, true)) {
             $networks[] = 'native';
@@ -51,20 +60,28 @@ class Render
             !empty($atts['brand']) && (string) $atts['brand'] === '1' ? 'is-brand' : 'is-mono',
         ];
 
-        $gap    = absint($opts['gap']);
-        $radius = absint($opts['radius']);
+        $defaults = $this->options->defaults();
+        $placement = $context['placement'] ?? 'inline';
+
+        if ($placement === 'floating') {
+            $gap    = absint($opts['sticky_gap'] ?? $defaults['sticky_gap']);
+            $radius = absint($opts['sticky_radius'] ?? $defaults['sticky_radius']);
+        } else {
+            $gap    = absint($opts['share_gap'] ?? $defaults['share_gap']);
+            $radius = absint($opts['share_radius'] ?? $defaults['share_radius']);
+        }
 
         if ($gap <= 0) {
-            $gap = absint($this->options->defaults()['gap']);
+            $gap = absint($placement === 'floating' ? $defaults['sticky_gap'] : $defaults['share_gap']);
         }
 
         if ($radius <= 0) {
-            $radius = absint($this->options->defaults()['radius']);
+            $radius = absint($placement === 'floating' ? $defaults['sticky_radius'] : $defaults['share_radius']);
         }
 
         $style_inline = sprintf('--waki-gap:%dpx;--waki-radius:%dpx;', $gap, $radius);
 
-        if (($context['placement'] ?? '') === 'floating') {
+        if ($placement === 'floating') {
             $classes[]    = 'waki-share-floating';
             $classes[]    = 'pos-' . sanitize_html_class($context['position'] ?? 'left');
             $style_inline .= sprintf('--waki-breakpoint:%dpx;', intval($context['breakpoint'] ?? 1024));
@@ -146,9 +163,18 @@ class Render
         ];
     }
 
-    private function prepare_networks(string $list, array $allowed): array
+    private function prepare_networks($list, array $allowed): array
     {
-        $nets = array_filter(array_map('trim', explode(',', strtolower($list))));
+        if (is_array($list)) {
+            $nets = $list;
+        } else {
+            $nets = explode(',', (string) $list);
+        }
+
+        $nets = array_filter(array_map(static function ($value) {
+            return sanitize_key($value);
+        }, $nets));
+
         $nets = array_values(array_intersect($nets, $allowed));
 
         return $nets;

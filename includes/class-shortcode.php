@@ -40,13 +40,18 @@ class Shortcode
             $atts = [];
         }
 
+        $networks_default = $options['share_networks_default'];
+        if (is_array($networks_default)) {
+            $networks_default = implode(',', $networks_default);
+        }
+
         $atts = shortcode_atts([
-            'networks'     => $options['networks'],
-            'labels'       => $options['labels'],
-            'style'        => $options['style'],
-            'size'         => $options['size'],
-            'align'        => 'left',
-            'brand'        => $options['brand_colors'] ? '1' : '0',
+            'networks'     => $networks_default,
+            'labels'       => $options['share_labels'],
+            'style'        => $options['share_style'],
+            'size'         => $options['share_size'],
+            'align'        => $options['share_align'],
+            'brand'        => $options['share_brand_colors'] ? '1' : '0',
             'utm_campaign' => '',
             'url'          => '',
             'title'        => '',
@@ -64,17 +69,22 @@ class Shortcode
     {
         $options = $this->options->all();
 
-        if (empty($options['floating_enabled'])) {
+        if (empty($options['sticky_enabled'])) {
             return;
         }
 
+        $networks_default = $options['share_networks_default'];
+        if (is_array($networks_default)) {
+            $networks_default = implode(',', $networks_default);
+        }
+
         $atts = [
-            'networks'     => $options['networks'],
+            'networks'     => $networks_default,
             'labels'       => 'hide',
-            'style'        => $options['style'],
+            'style'        => $options['share_style'],
             'size'         => 'sm',
             'align'        => 'left',
-            'brand'        => $options['brand_colors'] ? '1' : '0',
+            'brand'        => $options['share_brand_colors'] ? '1' : '0',
             'utm_campaign' => '',
             'url'          => '',
             'title'        => '',
@@ -82,8 +92,8 @@ class Shortcode
 
         $context = [
             'placement'  => 'floating',
-            'position'   => $options['floating_position'],
-            'breakpoint' => intval($options['floating_breakpoint']),
+            'position'   => $options['sticky_position'],
+            'breakpoint' => intval($options['sticky_breakpoint']),
         ];
 
         echo $this->renderer->render($context, $atts); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped

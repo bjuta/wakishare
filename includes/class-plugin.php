@@ -85,7 +85,7 @@ class Plugin
         });
 
         $this->container->set(Admin::class, function (Container $c): Admin {
-            return new Admin($c->get(Options::class), self::SLUG, self::TEXT_DOMAIN);
+            return new Admin($c->get(Options::class), $c->get(Networks::class), self::SLUG, self::TEXT_DOMAIN);
         });
 
         $this->container->set(Shortcode::class, function (Container $c): Shortcode {
