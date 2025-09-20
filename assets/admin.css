@@ -1,0 +1,4 @@
+.your-share-settings .your-share-floating-controls{margin-top:.5rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+.your-share-settings .your-share-gap-radius{display:flex;gap:1rem;flex-wrap:wrap}
+.your-share-settings .your-share-gap-radius label,.your-share-settings .your-share-floating-controls label{display:flex;flex-direction:column;font-weight:500;gap:.25rem}
+.your-share-settings .your-share-count{display:inline-block;margin-left:.5rem;background:#111;color:#fff;border-radius:9999px;padding:.1rem .6rem;font-size:.75rem;font-weight:600}
