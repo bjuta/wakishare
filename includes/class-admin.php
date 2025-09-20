@@ -300,6 +300,14 @@ class Admin
         );
 
         add_settings_field(
+            'smart_share_matrix',
+            __('Country networks', $this->text_domain),
+            [$this, 'field_smart_share_matrix'],
+            $page,
+            'your_share_smart_settings'
+        );
+
+        add_settings_field(
             'geo_source',
             __('Geo source', $this->text_domain),
             [$this, 'field_geo_source'],
@@ -641,6 +649,23 @@ class Admin
         <?php
     }
 
+    public function field_smart_share_matrix(): void
+    {
+        $values = $this->values();
+        $matrix = $values['smart_share_matrix'];
+        $rows   = [];
+
+        foreach ($matrix as $country => $networks) {
+            $rows[] = $country . ': ' . implode(', ', $networks);
+        }
+
+        $value = implode("\n", $rows);
+        ?>
+        <textarea rows="6" class="large-text code" name="<?php echo esc_attr($this->name('smart_share_matrix')); ?>" id="<?php echo esc_attr($this->field_id('smart_share_matrix')); ?>" placeholder="US: facebook, x, linkedin"><?php echo esc_textarea($value); ?></textarea>
+        <p class="description"><?php esc_html_e('Map two-letter country codes to preferred networks. Format each line as CC: network-one, network-two.', $this->text_domain); ?></p>
+        <?php
+    }
+
     public function field_geo_source(): void
     {
         $values = $this->values();
@@ -651,6 +676,7 @@ class Admin
             <option value="manual" <?php selected($values['geo_source'], 'manual'); ?>><?php esc_html_e('Manual override via filters', $this->text_domain); ?></option>
         </select>
         <p class="description"><?php esc_html_e('Determines how Smart Share chooses the best networks for a visitor based on location.', $this->text_domain); ?></p>
+        <p class="description"><?php esc_html_e('When Cloudflare headers are unavailable, auto detection falls back to Accept-Language only—no IP lookups required.', $this->text_domain); ?></p>
         <?php
     }
 
