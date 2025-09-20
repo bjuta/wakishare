@@ -1,4 +1,193 @@
-.your-share-settings .your-share-floating-controls{margin-top:.5rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
-.your-share-settings .your-share-gap-radius{display:flex;gap:1rem;flex-wrap:wrap}
-.your-share-settings .your-share-gap-radius label,.your-share-settings .your-share-floating-controls label{display:flex;flex-direction:column;font-weight:500;gap:.25rem}
-.your-share-settings .your-share-count{display:inline-block;margin-left:.5rem;background:#111;color:#fff;border-radius:9999px;padding:.1rem .6rem;font-size:.75rem;font-weight:600}
+.your-share-settings[data-your-share-admin] {
+  max-width: 960px;
+}
+
+.your-share-settings__intro {
+  margin-bottom: 1.5rem;
+  max-width: 720px;
+}
+
+.your-share-tab-panels {
+  margin-top: 1.5rem;
+}
+
+.your-share-tab-panel {
+  display: none;
+  border: 1px solid #dcdcde;
+  border-top: 0;
+  padding: 1.5rem;
+  background: #fff;
+}
+
+.your-share-tab-panel.is-active {
+  display: block;
+}
+
+.your-share-field-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.your-share-field-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.your-share-field-grid select,
+.your-share-field-grid input[type="text"],
+.your-share-field-grid input[type="number"] {
+  max-width: 100%;
+}
+
+.your-share-field-grid .your-share-field-wide {
+  grid-column: 1 / -1;
+}
+
+.your-share-field-stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.your-share-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.your-share-input-suffix {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.your-share-input-suffix span {
+  color: #6b7280;
+}
+
+.your-share-network-picker {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.your-share-network-selected,
+.your-share-network-available {
+  border: 1px solid #dcdcde;
+  background: #f8f9fb;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.your-share-network-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0 0 0.5rem;
+  padding: 0;
+}
+
+.your-share-network-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #dcdcde;
+  background: #fff;
+  cursor: grab;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.your-share-network-item.is-dragging {
+  opacity: 0.7;
+  transform: scale(0.98);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+}
+
+.your-share-network-handle {
+  font-size: 1rem;
+  line-height: 1;
+  color: #6b7280;
+  cursor: inherit;
+}
+
+.your-share-network-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: var(--your-share-network-color, #111827);
+}
+
+.your-share-network-remove {
+  border: none;
+  background: none;
+  color: #ef4444;
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.1rem;
+}
+
+.your-share-network-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.your-share-network-add.is-active {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.your-share-shortcode-preview {
+  margin-top: 0.5rem;
+}
+
+.your-share-shortcode-preview code {
+  display: block;
+  background: #111827;
+  color: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  word-break: break-all;
+}
+
+.your-share-summary {
+  background: #f1f5f9;
+  border: 1px solid #cbd5f5;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  color: #1f2937;
+}
+
+.your-share-color-chip {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  display: inline-block;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  background: var(--your-share-network-color, #111827);
+}
+
+.your-share-network-matrix {
+  margin-top: 1rem;
+}
+
+.your-share-network-buttons .button.button-small {
+  padding: 0.25rem 0.6rem;
+}
+
+@media (max-width: 782px) {
+  .your-share-tab-panel {
+    padding: 1rem;
+  }
+}
