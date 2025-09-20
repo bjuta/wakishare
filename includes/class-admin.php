@@ -60,8 +60,10 @@ class Admin
         );
 
         $this->register_share_settings();
+        $this->register_follow_settings();
         $this->register_sticky_settings();
         $this->register_smart_settings();
+        $this->register_counts_settings();
         $this->register_analytics_settings();
     }
 
@@ -216,6 +218,44 @@ class Admin
         );
     }
 
+    private function register_follow_settings(): void
+    {
+        $page = $this->page_id('follow');
+
+        add_settings_section(
+            'your_share_follow_profiles',
+            __('Follow buttons', $this->text_domain),
+            function (): void {
+                echo '<p>' . esc_html__('Connect your social profiles and control how follow buttons appear.', $this->text_domain) . '</p>';
+            },
+            $page
+        );
+
+        add_settings_field(
+            'follow_profiles',
+            __('Profile links', $this->text_domain),
+            [$this, 'field_follow_profiles'],
+            $page,
+            'your_share_follow_profiles'
+        );
+
+        add_settings_field(
+            'follow_order',
+            __('Display order', $this->text_domain),
+            [$this, 'field_follow_order'],
+            $page,
+            'your_share_follow_profiles'
+        );
+
+        add_settings_field(
+            'follow_shortcode_preview',
+            __('Shortcode preview', $this->text_domain),
+            [$this, 'field_follow_shortcode_preview'],
+            $page,
+            'your_share_follow_profiles'
+        );
+    }
+
     private function register_sticky_settings(): void
     {
         $page = $this->page_id('sticky');
@@ -324,6 +364,62 @@ class Admin
         );
     }
 
+    private function register_counts_settings(): void
+    {
+        $page = $this->page_id('counts');
+
+        add_settings_section(
+            'your_share_counts_general',
+            __('Caching & status', $this->text_domain),
+            function (): void {
+                echo '<p>' . esc_html__('Control if share counts are collected and how long cached values are retained.', $this->text_domain) . '</p>';
+            },
+            $page
+        );
+
+        add_settings_field(
+            'counts_general',
+            __('Status', $this->text_domain),
+            [$this, 'field_counts_general'],
+            $page,
+            'your_share_counts_general'
+        );
+
+        add_settings_section(
+            'your_share_counts_display',
+            __('Display', $this->text_domain),
+            function (): void {
+                echo '<p>' . esc_html__('Choose how share counts are surfaced alongside your buttons.', $this->text_domain) . '</p>';
+            },
+            $page
+        );
+
+        add_settings_field(
+            'counts_display',
+            __('Front end', $this->text_domain),
+            [$this, 'field_counts_display'],
+            $page,
+            'your_share_counts_display'
+        );
+
+        add_settings_section(
+            'your_share_counts_credentials',
+            __('API credentials', $this->text_domain),
+            function (): void {
+                echo '<p>' . esc_html__('Provide access tokens for networks that require authentication to return share counts.', $this->text_domain) . '</p>';
+            },
+            $page
+        );
+
+        add_settings_field(
+            'counts_credentials',
+            __('Providers', $this->text_domain),
+            [$this, 'field_counts_credentials'],
+            $page,
+            'your_share_counts_credentials'
+        );
+    }
+
     private function register_analytics_settings(): void
     {
         $page = $this->page_id('analytics');
@@ -426,6 +522,107 @@ class Admin
         <?php
     }
 
+    public function field_follow_profiles(): void
+    {
+        $values      = $this->values();
+        $profiles    = $values['follow_profiles'];
+        $networks    = $this->networks->follow();
+        $placeholders = [
+            'x'             => __('https://x.com/your-handle', $this->text_domain),
+            'instagram'     => __('https://instagram.com/your-handle', $this->text_domain),
+            'facebook-page' => __('https://www.facebook.com/your-page', $this->text_domain),
+            'tiktok'        => __('https://www.tiktok.com/@your-handle', $this->text_domain),
+            'youtube'       => __('https://www.youtube.com/@your-channel', $this->text_domain),
+            'linkedin'      => __('https://www.linkedin.com/company/your-page', $this->text_domain),
+        ];
+        ?>
+        <div class="your-share-field-grid">
+            <?php foreach ($networks as $slug => $data) :
+                [$label] = $data;
+                $input_id = $this->field_id('follow_' . $slug);
+                $value    = $profiles[$slug] ?? '';
+                $placeholder = $placeholders[$slug] ?? '';
+                ?>
+                <label for="<?php echo esc_attr($input_id); ?>">
+                    <span><?php echo esc_html($label); ?></span>
+                    <input
+                        type="url"
+                        id="<?php echo esc_attr($input_id); ?>"
+                        name="<?php echo esc_attr($this->name('follow_profiles') . '[' . $slug . ']'); ?>"
+                        value="<?php echo esc_attr($value); ?>"
+                        placeholder="<?php echo esc_attr($placeholder); ?>"
+                        inputmode="url"
+                    >
+                </label>
+            <?php endforeach; ?>
+        </div>
+        <p class="description"><?php esc_html_e('Provide full profile URLs. Leave blank to hide a network.', $this->text_domain); ?></p>
+        <?php
+    }
+
+    public function field_follow_order(): void
+    {
+        $values    = $this->values();
+        $order     = $values['follow_networks'];
+        $available = $this->networks->follow();
+        $input_id  = $this->field_id('follow_networks');
+        ?>
+        <div class="your-share-network-picker" data-your-share-networks>
+            <input
+                type="hidden"
+                id="<?php echo esc_attr($input_id); ?>"
+                name="<?php echo esc_attr($this->name('follow_networks')); ?>"
+                value="<?php echo esc_attr(implode(',', $order)); ?>"
+                data-your-share-network-input
+                data-your-share-follow-networks
+                data-your-share-follow-prop="networks"
+            >
+            <div class="your-share-network-selected">
+                <p class="description"><?php esc_html_e('Drag to control the display order. Only networks with profile links will render.', $this->text_domain); ?></p>
+                <ul class="your-share-network-list" data-your-share-network-list>
+                    <?php foreach ($order as $slug) :
+                        if (!isset($available[$slug])) {
+                            continue;
+                        }
+                        [$label, $color] = $available[$slug];
+                        ?>
+                        <li class="your-share-network-item" data-value="<?php echo esc_attr($slug); ?>" draggable="true">
+                            <span class="your-share-network-handle" aria-hidden="true">⋮⋮</span>
+                            <span class="your-share-network-swatch" style="--your-share-network-color: <?php echo esc_attr($color); ?>"></span>
+                            <span class="your-share-network-label"><?php echo esc_html($label); ?></span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        </div>
+        <?php
+    }
+
+    public function field_follow_shortcode_preview(): void
+    {
+        $values   = $this->values();
+        $networks = implode(',', $values['follow_networks']);
+        $style    = $values['share_style'];
+        $size     = $values['share_size'];
+        $align    = $values['share_align'];
+        $brand    = $values['share_brand_colors'] ? '1' : '0';
+        ?>
+        <div
+            class="your-share-shortcode-preview"
+            data-your-share-follow-shortcode
+            data-default-networks="<?php echo esc_attr($networks); ?>"
+            data-default-style="<?php echo esc_attr($style); ?>"
+            data-default-size="<?php echo esc_attr($size); ?>"
+            data-default-align="<?php echo esc_attr($align); ?>"
+            data-default-brand="<?php echo esc_attr($brand); ?>"
+            data-default-labels="show"
+        >
+            <code data-your-share-follow-output></code>
+            <p class="description"><?php esc_html_e('Use the [share_follow] shortcode or block to place follow buttons. Attributes include networks, style, size, align, brand, and labels.', $this->text_domain); ?></p>
+        </div>
+        <?php
+    }
+
     public function field_share_design(): void
     {
         $values = $this->values();
@@ -433,7 +630,7 @@ class Admin
         <div class="your-share-field-grid">
             <label for="<?php echo esc_attr($this->field_id('share_style')); ?>">
                 <span><?php esc_html_e('Style', $this->text_domain); ?></span>
-                <select id="<?php echo esc_attr($this->field_id('share_style')); ?>" name="<?php echo esc_attr($this->name('share_style')); ?>" data-your-share-shortcode-prop="style">
+                <select id="<?php echo esc_attr($this->field_id('share_style')); ?>" name="<?php echo esc_attr($this->name('share_style')); ?>" data-your-share-shortcode-prop="style" data-your-share-follow-prop="style">
                     <option value="solid" <?php selected($values['share_style'], 'solid'); ?>><?php esc_html_e('Solid', $this->text_domain); ?></option>
                     <option value="outline" <?php selected($values['share_style'], 'outline'); ?>><?php esc_html_e('Outline', $this->text_domain); ?></option>
                     <option value="ghost" <?php selected($values['share_style'], 'ghost'); ?>><?php esc_html_e('Ghost', $this->text_domain); ?></option>
@@ -441,7 +638,7 @@ class Admin
             </label>
             <label for="<?php echo esc_attr($this->field_id('share_size')); ?>">
                 <span><?php esc_html_e('Size', $this->text_domain); ?></span>
-                <select id="<?php echo esc_attr($this->field_id('share_size')); ?>" name="<?php echo esc_attr($this->name('share_size')); ?>" data-your-share-shortcode-prop="size">
+                <select id="<?php echo esc_attr($this->field_id('share_size')); ?>" name="<?php echo esc_attr($this->name('share_size')); ?>" data-your-share-shortcode-prop="size" data-your-share-follow-prop="size">
                     <option value="sm" <?php selected($values['share_size'], 'sm'); ?>><?php esc_html_e('Small', $this->text_domain); ?></option>
                     <option value="md" <?php selected($values['share_size'], 'md'); ?>><?php esc_html_e('Medium', $this->text_domain); ?></option>
                     <option value="lg" <?php selected($values['share_size'], 'lg'); ?>><?php esc_html_e('Large', $this->text_domain); ?></option>
@@ -449,14 +646,14 @@ class Admin
             </label>
             <label for="<?php echo esc_attr($this->field_id('share_labels')); ?>">
                 <span><?php esc_html_e('Label display', $this->text_domain); ?></span>
-                <select id="<?php echo esc_attr($this->field_id('share_labels')); ?>" name="<?php echo esc_attr($this->name('share_labels')); ?>" data-your-share-shortcode-prop="labels">
+                <select id="<?php echo esc_attr($this->field_id('share_labels')); ?>" name="<?php echo esc_attr($this->name('share_labels')); ?>" data-your-share-shortcode-prop="labels" data-your-share-follow-prop="labels">
                     <option value="auto" <?php selected($values['share_labels'], 'auto'); ?>><?php esc_html_e('Auto', $this->text_domain); ?></option>
                     <option value="show" <?php selected($values['share_labels'], 'show'); ?>><?php esc_html_e('Show', $this->text_domain); ?></option>
                     <option value="hide" <?php selected($values['share_labels'], 'hide'); ?>><?php esc_html_e('Hide', $this->text_domain); ?></option>
                 </select>
             </label>
             <label>
-                <input type="checkbox" name="<?php echo esc_attr($this->name('share_brand_colors')); ?>" value="1" <?php checked($values['share_brand_colors'], 1); ?> data-your-share-shortcode-prop="brand">
+                <input type="checkbox" name="<?php echo esc_attr($this->name('share_brand_colors')); ?>" value="1" <?php checked($values['share_brand_colors'], 1); ?> data-your-share-shortcode-prop="brand" data-your-share-follow-prop="brand">
                 <?php esc_html_e('Use brand colours', $this->text_domain); ?>
             </label>
         </div>
@@ -470,7 +667,7 @@ class Admin
         <div class="your-share-field-grid">
             <label for="<?php echo esc_attr($this->field_id('share_align')); ?>">
                 <span><?php esc_html_e('Alignment', $this->text_domain); ?></span>
-                <select id="<?php echo esc_attr($this->field_id('share_align')); ?>" name="<?php echo esc_attr($this->name('share_align')); ?>">
+                <select id="<?php echo esc_attr($this->field_id('share_align')); ?>" name="<?php echo esc_attr($this->name('share_align')); ?>" data-your-share-follow-prop="align">
                     <option value="left" <?php selected($values['share_align'], 'left'); ?>><?php esc_html_e('Left', $this->text_domain); ?></option>
                     <option value="center" <?php selected($values['share_align'], 'center'); ?>><?php esc_html_e('Center', $this->text_domain); ?></option>
                     <option value="right" <?php selected($values['share_align'], 'right'); ?>><?php esc_html_e('Right', $this->text_domain); ?></option>
@@ -706,6 +903,72 @@ class Admin
         <?php
     }
 
+    public function field_counts_general(): void
+    {
+        $values   = $this->values();
+        $field_id = $this->field_id('counts_refresh_interval');
+        ?>
+        <div class="your-share-field-stack">
+            <label class="your-share-toggle">
+                <input type="checkbox" name="<?php echo esc_attr($this->name('counts_enabled')); ?>" value="1" <?php checked($values['counts_enabled'], 1); ?>>
+                <?php esc_html_e('Enable share counts collection', $this->text_domain); ?>
+            </label>
+            <label for="<?php echo esc_attr($field_id); ?>">
+                <span><?php esc_html_e('Refresh interval', $this->text_domain); ?></span>
+                <div class="your-share-input-suffix">
+                    <input type="number" min="0" id="<?php echo esc_attr($field_id); ?>" name="<?php echo esc_attr($this->name('counts_refresh_interval')); ?>" value="<?php echo esc_attr($values['counts_refresh_interval']); ?>">
+                    <span><?php esc_html_e('minutes', $this->text_domain); ?></span>
+                </div>
+                <p class="description"><?php esc_html_e('Cached counts older than this threshold will be refreshed. Use 0 to bypass caching.', $this->text_domain); ?></p>
+            </label>
+        </div>
+        <?php
+    }
+
+    public function field_counts_display(): void
+    {
+        $values = $this->values();
+        ?>
+        <div class="your-share-field-stack">
+            <label class="your-share-toggle">
+                <input type="checkbox" name="<?php echo esc_attr($this->name('counts_show_badges')); ?>" value="1" <?php checked($values['counts_show_badges'], 1); ?>>
+                <?php esc_html_e('Show per-network badges beside each button', $this->text_domain); ?>
+            </label>
+            <label class="your-share-toggle">
+                <input type="checkbox" name="<?php echo esc_attr($this->name('counts_show_total')); ?>" value="1" <?php checked($values['counts_show_total'], 1); ?>>
+                <?php esc_html_e('Display the combined total above the button list', $this->text_domain); ?>
+            </label>
+            <p class="description"><?php esc_html_e('Counts reuse the last successful response if a provider is unavailable.', $this->text_domain); ?></p>
+        </div>
+        <?php
+    }
+
+    public function field_counts_credentials(): void
+    {
+        $values = $this->values();
+        ?>
+        <div class="your-share-field-grid">
+            <label for="<?php echo esc_attr($this->field_id('counts_facebook_app_id')); ?>">
+                <span><?php esc_html_e('Facebook App ID', $this->text_domain); ?></span>
+                <input type="text" id="<?php echo esc_attr($this->field_id('counts_facebook_app_id')); ?>" name="<?php echo esc_attr($this->name('counts_facebook_app_id')); ?>" value="<?php echo esc_attr($values['counts_facebook_app_id']); ?>" autocomplete="off">
+            </label>
+            <label for="<?php echo esc_attr($this->field_id('counts_facebook_app_secret')); ?>">
+                <span><?php esc_html_e('Facebook App Secret', $this->text_domain); ?></span>
+                <input type="text" id="<?php echo esc_attr($this->field_id('counts_facebook_app_secret')); ?>" name="<?php echo esc_attr($this->name('counts_facebook_app_secret')); ?>" value="<?php echo esc_attr($values['counts_facebook_app_secret']); ?>" autocomplete="off">
+            </label>
+            <label for="<?php echo esc_attr($this->field_id('counts_reddit_app_id')); ?>">
+                <span><?php esc_html_e('Reddit Client ID', $this->text_domain); ?></span>
+                <input type="text" id="<?php echo esc_attr($this->field_id('counts_reddit_app_id')); ?>" name="<?php echo esc_attr($this->name('counts_reddit_app_id')); ?>" value="<?php echo esc_attr($values['counts_reddit_app_id']); ?>" autocomplete="off">
+            </label>
+            <label for="<?php echo esc_attr($this->field_id('counts_reddit_app_secret')); ?>">
+                <span><?php esc_html_e('Reddit Client Secret', $this->text_domain); ?></span>
+                <input type="text" id="<?php echo esc_attr($this->field_id('counts_reddit_app_secret')); ?>" name="<?php echo esc_attr($this->name('counts_reddit_app_secret')); ?>" value="<?php echo esc_attr($values['counts_reddit_app_secret']); ?>" autocomplete="off">
+            </label>
+        </div>
+        <p class="description"><?php esc_html_e('Leave any field blank to rely on unauthenticated requests when supported by the provider.', $this->text_domain); ?></p>
+        <?php
+    }
+
     public function field_utm_settings(): void
     {
         $values = $this->values();
@@ -786,8 +1049,10 @@ class Admin
     {
         return [
             'share'     => __('Share', $this->text_domain),
+            'follow'    => __('Follow', $this->text_domain),
             'sticky'    => __('Sticky Bar', $this->text_domain),
             'smart'     => __('Smart Share', $this->text_domain),
+            'counts'    => __('Share Counts', $this->text_domain),
             'analytics' => __('Analytics & UTM', $this->text_domain),
         ];
     }
