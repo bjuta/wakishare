@@ -32,4 +32,18 @@ class Networks
 
         return apply_filters('your_share_networks', $map);
     }
+
+    public function follow(): array
+    {
+        $map = [
+            'x'             => [__('X', $this->text_domain), '#000000'],
+            'instagram'     => [__('Instagram', $this->text_domain), '#E1306C'],
+            'facebook-page' => [__('Facebook Page', $this->text_domain), '#1877F2'],
+            'tiktok'        => [__('TikTok', $this->text_domain), '#000000'],
+            'youtube'       => [__('YouTube', $this->text_domain), '#FF0000'],
+            'linkedin'      => [__('LinkedIn', $this->text_domain), '#0A66C2'],
+        ];
+
+        return apply_filters('your_share_follow_networks', $map);
+    }
 }

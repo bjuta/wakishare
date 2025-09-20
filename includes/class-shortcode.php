@@ -30,6 +30,8 @@ class Shortcode
     {
         add_shortcode('your_share', [$this, 'handle_shortcode']);
         add_shortcode('waki_share', [$this, 'handle_shortcode']);
+        add_shortcode('share_follow', [$this, 'handle_follow_shortcode']);
+        add_shortcode('waki_follow', [$this, 'handle_follow_shortcode']);
     }
 
     public function handle_shortcode($atts, $content = '', string $tag = 'your_share'): string
@@ -58,6 +60,26 @@ class Shortcode
         ];
 
         return $this->renderer->render($context, $atts);
+    }
+
+    public function handle_follow_shortcode($atts, $content = '', string $tag = 'share_follow'): string
+    {
+        $options = $this->options->all();
+
+        if (!is_array($atts)) {
+            $atts = [];
+        }
+
+        $atts = shortcode_atts([
+            'networks' => '',
+            'style'    => $options['share_style'],
+            'size'     => $options['share_size'],
+            'align'    => $options['share_align'],
+            'brand'    => $options['share_brand_colors'] ? '1' : '0',
+            'labels'   => 'show',
+        ], $atts, $tag);
+
+        return $this->renderer->render_follow($atts);
     }
 
     public function maybe_render_floating(): void

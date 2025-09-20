@@ -16,6 +16,7 @@
     setupTabs(root);
     setupNetworkPicker(root);
     setupShortcodePreview(root);
+    setupFollowShortcodePreview(root);
     setupUtmPreview(root);
   }
 
@@ -105,6 +106,7 @@
           count.textContent = values.length;
         }
         refreshShortcodePreview(root);
+        refreshFollowShortcodePreview(root);
       }
 
       function setButtonState(slug, isActive){
@@ -246,6 +248,15 @@
     refreshShortcodePreview(root);
   }
 
+  function setupFollowShortcodePreview(root){
+    var inputs = qsa(root, '[data-your-share-follow-prop]');
+    inputs.forEach(function(input){
+      input.addEventListener('change', function(){ refreshFollowShortcodePreview(root); });
+      input.addEventListener('input', function(){ refreshFollowShortcodePreview(root); });
+    });
+    refreshFollowShortcodePreview(root);
+  }
+
   function setupUtmPreview(root){
     if (!qs(root, '[data-your-share-utm-preview]')){
       return;
@@ -296,6 +307,61 @@
     shortcode += ']';
 
     target.textContent = shortcode;
+  }
+
+  function refreshFollowShortcodePreview(root){
+    var container = qs(root, '[data-your-share-follow-shortcode]');
+    if (!container){
+      return;
+    }
+
+    var output = qs(container, '[data-your-share-follow-output]');
+    if (!output){
+      return;
+    }
+
+    var defaults = {
+      networks: container.getAttribute('data-default-networks') || '',
+      style: container.getAttribute('data-default-style') || 'solid',
+      size: container.getAttribute('data-default-size') || 'md',
+      align: container.getAttribute('data-default-align') || 'left',
+      brand: container.getAttribute('data-default-brand') || '1',
+      labels: container.getAttribute('data-default-labels') || 'show'
+    };
+
+    var networksInput = qs(root, '[data-your-share-follow-networks]');
+    var styleInput = qs(root, '[data-your-share-follow-prop="style"]');
+    var sizeInput = qs(root, '[data-your-share-follow-prop="size"]');
+    var alignInput = qs(root, '[data-your-share-follow-prop="align"]');
+    var brandInput = qs(root, '[data-your-share-follow-prop="brand"]');
+    var labelsInput = qs(root, '[data-your-share-follow-prop="labels"]');
+
+    var networks = networksInput && networksInput.value ? networksInput.value.trim() : defaults.networks;
+    var style = styleInput ? styleInput.value : defaults.style;
+    var size = sizeInput ? sizeInput.value : defaults.size;
+    var align = alignInput ? alignInput.value : defaults.align;
+    var brand = defaults.brand;
+    if (brandInput){
+      if (brandInput.type === 'checkbox'){
+        brand = brandInput.checked ? '1' : '0';
+      } else {
+        brand = brandInput.value || defaults.brand;
+      }
+    }
+    var labels = labelsInput ? labelsInput.value : defaults.labels;
+
+    var shortcode = '[share_follow';
+    if (networks){
+      shortcode += ' networks="' + networks + '"';
+    }
+    shortcode += ' style="' + style + '"';
+    shortcode += ' size="' + size + '"';
+    shortcode += ' align="' + align + '"';
+    shortcode += ' brand="' + brand + '"';
+    shortcode += ' labels="' + labels + '"';
+    shortcode += ']';
+
+    output.textContent = shortcode;
   }
 
   function refreshUtmPreview(root){
