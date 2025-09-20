@@ -1,0 +1,33 @@
+.waki-share{--waki-gap:8px;--waki-radius:9999px;display:flex;flex-wrap:wrap;gap:var(--waki-gap);align-items:center}
+.waki-share.align-center{justify-content:center}
+.waki-share.align-right{justify-content:flex-end}
+.waki-btn{display:inline-flex;align-items:center;gap:.5rem;text-decoration:none;border:1px solid transparent;border-radius:var(--waki-radius);transition:transform .08s ease,background .2s ease,border-color .2s ease;line-height:1}
+.waki-icon{width:1.25rem;height:1.25rem;display:inline-block}
+.waki-label{font-size:.875rem;font-weight:500}
+.waki-size-sm .waki-btn{padding:.35rem .5rem;font-size:.85rem}
+.waki-size-md .waki-btn{padding:.5rem .75rem;font-size:.9rem}
+.waki-size-lg .waki-btn{padding:.65rem .9rem;font-size:1rem}
+.waki-style-solid.is-brand .waki-btn[data-net]{color:#fff}
+.waki-style-solid.is-mono .waki-btn{background:#111;color:#fff}
+.waki-style-outline .waki-btn{background:transparent;border-color:rgba(0,0,0,.18);color:#111}
+.waki-style-ghost .waki-btn{background:transparent;color:#111}
+.waki-style-outline .waki-btn:hover,
+.waki-style-ghost .waki-btn:hover{border-color:rgba(0,0,0,.35);transform:translateY(-1px)}
+.waki-style-solid .waki-btn:hover{filter:brightness(0.95);transform:translateY(-1px)}
+.is-brand .waki-btn[data-net="facebook"]{background:#1877F2}
+.is-brand .waki-btn[data-net="x"]{background:#000}
+.is-brand .waki-btn[data-net="whatsapp"]{background:#25D366}
+.is-brand .waki-btn[data-net="telegram"]{background:#26A5E4}
+.is-brand .waki-btn[data-net="linkedin"]{background:#0A66C2}
+.is-brand .waki-btn[data-net="reddit"]{background:#FF4500}
+.is-brand .waki-btn[data-net="email"]{background:#6B7280}
+.is-brand .waki-btn[data-net="copy"]{background:#6B7280}
+.is-brand .waki-btn[data-net="native"]{background:#6B7280}
+.waki-labels-hide .waki-label{display:none}
+@media (max-width:640px){.waki-labels-auto .waki-label{display:none}}
+.waki-share-floating{position:fixed;top:40%;transform:translateY(-50%);z-index:9999;display:flex;flex-direction:column;background:transparent}
+.waki-share-floating.pos-left{left:12px}
+.waki-share-floating.pos-right{right:12px}
+#wakiShareToast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#111;color:#fff;padding:.5rem .75rem;border-radius:8px;font-size:.875rem;opacity:0;pointer-events:none;transition:opacity .25s ease}
+#wakiShareToast.show{opacity:1}
+.waki-share svg,.waki-share svg *{opacity:1;display:inline-block;fill:currentColor}
