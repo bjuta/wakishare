@@ -23,6 +23,9 @@ class Render
     /** @var string */
     private $text_domain;
 
+    /** @var bool */
+    private $media_config_localized = false;
+
     public function __construct(Options $options, Networks $networks, UTM $utm, Icons $icons, string $text_domain)
     {
         $this->options     = $options;
@@ -30,14 +33,17 @@ class Render
         $this->utm         = $utm;
         $this->icons       = $icons;
         $this->text_domain = $text_domain;
+
+        add_action('wp_enqueue_scripts', [$this, 'register_media_overlays'], 20);
     }
 
     public function render(array $context, array $atts): string
     {
-        $opts      = $this->options->all();
-        $map       = $this->networks->all();
-        $share_ctx = $this->current_share_context($atts);
-        $allowed   = array_keys($map);
+        $opts       = $this->options->all();
+        $map        = $this->networks->all();
+        $share_ctx  = $this->current_share_context($atts);
+        $allowed    = array_keys($map);
+        $placement  = $context['placement'] ?? 'inline';
 
         $geo       = $this->resolve_geo_country($opts, $context, $atts);
         $matrix    = $opts['smart_share_matrix'] ?? [];
@@ -54,7 +60,7 @@ class Render
             $networks = $this->prepare_networks($defaults, $allowed);
         }
 
-        if (!in_array('native', $networks, true)) {
+        if ($placement !== 'overlay' && !in_array('native', $networks, true)) {
             $networks[] = 'native';
         }
 
@@ -64,14 +70,17 @@ class Render
             'waki-style-' . sanitize_html_class($atts['style'] ?? 'solid'),
             'waki-labels-' . sanitize_html_class($atts['labels'] ?? 'auto'),
             !empty($atts['brand']) && (string) $atts['brand'] === '1' ? 'is-brand' : 'is-mono',
+            'waki-share-placement-' . sanitize_html_class($placement),
         ];
 
         $defaults = $this->options->defaults();
-        $placement = $context['placement'] ?? 'inline';
 
         if ($placement === 'floating') {
             $gap    = absint($opts['sticky_gap'] ?? $defaults['sticky_gap']);
             $radius = absint($opts['sticky_radius'] ?? $defaults['sticky_radius']);
+        } elseif ($placement === 'overlay') {
+            $gap    = absint($opts['share_gap'] ?? $defaults['share_gap']);
+            $radius = absint($opts['share_radius'] ?? $defaults['share_radius']);
         } else {
             $gap    = absint($opts['share_gap'] ?? $defaults['share_gap']);
             $radius = absint($opts['share_radius'] ?? $defaults['share_radius']);
@@ -85,12 +94,18 @@ class Render
             $radius = absint($placement === 'floating' ? $defaults['sticky_radius'] : $defaults['share_radius']);
         }
 
+        if ($placement === 'overlay') {
+            $gap = max(4, $gap);
+        }
+
         $style_inline = sprintf('--waki-gap:%dpx;--waki-radius:%dpx;', $gap, $radius);
 
         if ($placement === 'floating') {
             $classes[]    = 'waki-share-floating';
             $classes[]    = 'pos-' . sanitize_html_class($context['position'] ?? 'left');
             $style_inline .= sprintf('--waki-breakpoint:%dpx;', intval($context['breakpoint'] ?? 1024));
+        } elseif ($placement === 'overlay') {
+            $classes[] = 'waki-share-overlay-share';
         } else {
             $classes[] = 'waki-share-inline';
             $classes[] = 'align-' . sanitize_html_class($context['align'] ?? 'left');
@@ -104,6 +119,7 @@ class Render
         <?php $data_attrs = $this->format_attributes([
             'data-your-share-country'        => $geo['country'],
             'data-your-share-country-source' => $geo['source'],
+            'data-your-share-placement'      => $placement,
         ]); ?>
         <div class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr($style_inline); ?>"<?php echo $data_attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
             <?php foreach ($networks as $network) :
@@ -145,6 +161,105 @@ class Render
         </div>
         <?php
         return trim((string) ob_get_clean());
+    }
+
+    public function register_media_overlays(): void
+    {
+        if ($this->media_config_localized || is_admin()) {
+            return;
+        }
+
+        if (!wp_script_is('your-share', 'enqueued') && !wp_script_is('your-share', 'registered')) {
+            return;
+        }
+
+        $options = $this->options->all();
+
+        if (!apply_filters('your_share_media_overlay_enabled', true, $options)) {
+            return;
+        }
+
+        $raw_selectors = $options['media_overlay_selectors'] ?? '';
+        $selectors     = $this->normalize_selector_list($raw_selectors);
+        $selectors     = apply_filters('your_share_media_overlay_selectors', $selectors, $options);
+
+        $selectors = array_values(array_filter($selectors, static function ($selector) {
+            return is_string($selector) && trim($selector) !== '';
+        }));
+
+        if (empty($selectors)) {
+            return;
+        }
+
+        $allowed_positions = ['top-start', 'top-end', 'bottom-start', 'bottom-end', 'center'];
+        $position          = $options['media_overlay_position'] ?? 'top-end';
+        if (!in_array($position, $allowed_positions, true)) {
+            $position = 'top-end';
+        }
+
+        $allowed_triggers = ['hover', 'always'];
+        $trigger          = $options['media_overlay_trigger'] ?? 'hover';
+        if (!in_array($trigger, $allowed_triggers, true)) {
+            $trigger = 'hover';
+        }
+
+        $all_networks = array_keys($this->networks->all());
+
+        $default_overlay_networks = $options['share_networks_default'];
+        if (!is_array($default_overlay_networks)) {
+            $default_overlay_networks = $this->options->defaults()['share_networks_default'];
+        }
+        $default_overlay_networks = array_slice($default_overlay_networks, 0, 4);
+
+        $networks = $this->prepare_networks($default_overlay_networks, $all_networks);
+        $networks = apply_filters('your_share_media_overlay_networks', $networks, $options);
+        $networks = $this->prepare_networks($networks, $all_networks);
+
+        if (empty($networks)) {
+            $networks = $this->prepare_networks($this->options->defaults()['share_networks_default'], $all_networks);
+        }
+
+        $atts = [
+            'networks'     => implode(',', $networks),
+            'labels'       => 'hide',
+            'style'        => $options['share_style'],
+            'size'         => 'sm',
+            'align'        => 'left',
+            'brand'        => $options['share_brand_colors'] ? '1' : '0',
+            'utm_campaign' => '',
+            'url'          => '',
+            'title'        => '',
+        ];
+
+        $context = [
+            'placement' => 'overlay',
+        ];
+
+        $markup = trim($this->render($context, $atts));
+        $markup = apply_filters('your_share_media_overlay_markup', $markup, $options, $context, $atts);
+
+        if ($markup === '') {
+            return;
+        }
+
+        $config = [
+            'selectors'   => $selectors,
+            'position'    => $position,
+            'trigger'     => $trigger,
+            'markup'      => $markup,
+            'toggleLabel' => __('Share this media', $this->text_domain),
+            'toggleText'  => __('Share', $this->text_domain),
+        ];
+
+        $config = apply_filters('your_share_media_overlay_config', $config, $options);
+
+        if (empty($config['selectors']) || empty($config['markup'])) {
+            return;
+        }
+
+        wp_localize_script('your-share', 'yourShareMedia', $config);
+
+        $this->media_config_localized = true;
     }
 
     private function current_share_context(array $atts): array
@@ -343,5 +458,28 @@ class Render
             default:
                 return $base_url;
         }
+    }
+
+    private function normalize_selector_list($value): array
+    {
+        if (is_array($value)) {
+            $selectors = $value;
+        } else {
+            $selectors = preg_split('/[\r\n,]+/', (string) $value);
+        }
+
+        if (!$selectors) {
+            return [];
+        }
+
+        $selectors = array_map(static function ($selector) {
+            return trim((string) $selector);
+        }, $selectors);
+
+        $selectors = array_filter($selectors, static function ($selector) {
+            return $selector !== '';
+        });
+
+        return array_values(array_unique($selectors));
     }
 }

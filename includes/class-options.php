@@ -49,6 +49,9 @@ class Options
                 'BR' => ['whatsapp', 'facebook', 'telegram', 'email', 'copy'],
                 'DE' => ['whatsapp', 'facebook', 'linkedin', 'email', 'copy'],
             ],
+            'media_overlay_selectors'   => ".entry-content img, .entry-content video, .entry-content iframe[src*='youtube'], .entry-content iframe[src*='vimeo']",
+            'media_overlay_position'    => 'top-end',
+            'media_overlay_trigger'     => 'hover',
             'geo_source'                => 'auto',
             'enable_utm'                => 1,
             'utm_medium'                => 'social',
@@ -146,6 +149,22 @@ class Options
         if (empty($output['smart_share_matrix'])) {
             $output['smart_share_matrix'] = $this->normalize_matrix($defaults['smart_share_matrix']);
         }
+
+        $output['media_overlay_selectors'] = sanitize_textarea_field($input['media_overlay_selectors'] ?? $defaults['media_overlay_selectors']);
+
+        $position = sanitize_key($input['media_overlay_position'] ?? $defaults['media_overlay_position']);
+        $allowed_positions = ['top-start', 'top-end', 'bottom-start', 'bottom-end', 'center'];
+        if (!in_array($position, $allowed_positions, true)) {
+            $position = $defaults['media_overlay_position'];
+        }
+        $output['media_overlay_position'] = $position;
+
+        $trigger = sanitize_key($input['media_overlay_trigger'] ?? $defaults['media_overlay_trigger']);
+        $allowed_triggers = ['hover', 'always'];
+        if (!in_array($trigger, $allowed_triggers, true)) {
+            $trigger = $defaults['media_overlay_trigger'];
+        }
+        $output['media_overlay_trigger'] = $trigger;
 
         $geo_source = sanitize_key($input['geo_source'] ?? $defaults['geo_source']);
         if (!in_array($geo_source, ['auto', 'ip', 'manual'], true)) {
