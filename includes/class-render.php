@@ -26,19 +26,21 @@ class Render
     /** @var string */
     private $text_domain;
 
-    public function __construct(Options $options, Networks $networks, UTM $utm, Icons $icons, Reactions $reactions, string $text_domain)
+    /** @var Counts|null */
+    private $counts;
 
     /** @var bool */
     private $media_config_localized = false;
 
-    public function __construct(Options $options, Networks $networks, UTM $utm, Icons $icons, string $text_domain)
-
-    /** @var Counts|null */
-    private $counts;
-
-    public function __construct(Options $options, Networks $networks, UTM $utm, Icons $icons, string $text_domain, ?Counts $counts = null)
-
-    {
+    public function __construct(
+        Options $options,
+        Networks $networks,
+        UTM $utm,
+        Icons $icons,
+        Reactions $reactions,
+        string $text_domain,
+        ?Counts $counts = null
+    ) {
         $this->options     = $options;
         $this->networks    = $networks;
         $this->utm         = $utm;
@@ -304,6 +306,7 @@ class Render
         wp_localize_script('your-share', 'yourShareMedia', $config);
 
         $this->media_config_localized = true;
+    }
 
     public function render_follow(array $atts): string
     {
