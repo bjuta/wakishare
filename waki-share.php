@@ -338,20 +338,62 @@ final class Waki_Share {
     }
 
     private function svg_icon($net) {
-        // intentionally minimal; monochrome-friendly
-        $paths = [
-            'facebook' => 'M18 0h-4a6 6 0 0 0-6 6v4H4v4h4v10h4V14h4l1-4h-5V6a2 2 0 0 1 2-2h3z',
-            'x'        => 'M0 0l9 10.5L0 24h4.5L12 13.5 19.5 24H24L15 12l9-12h-4.5L12 10.5 4.5 0z',
-            'whatsapp' => 'M12 0a12 12 0 0 0-10.4 18L0 24l6-1.6A12 12 0 1 0 12 0zm6.8 17.2c-.3.8-1.7 1.6-2.4 1.7-.6.1-1.3.2-2.1 0-1.2-.3-2.7-.9-4.4-2.2-1.5-1.1-2.6-2.5-3.3-3.9-.7-1.3-.9-2.5-.8-3.4.1-.8.6-1.8 1.4-2.2.4-.3.9-.2 1.2 0l1.7 2.5c.2.3.2.6 0 .9l-.6 1c-.2.3-.1.7.1 1 1.3 2 3 3.2 4.9 4 .3.1.7.1 1-.2l1-.9c.3-.3.7-.3 1 0l2.4 1.5c.3.2.4.6.3 1.2z',
-            'telegram' => 'M22.5 1.5L1.6 9.6c-1 .4-1 .9-.2 1.2l5.2 1.6 1.9 6c.2.4.4.5.8.2l2.7-2.2 5.3 3.9c.5.3.8.2.9-.4l3.3-16.7c.2-.9-.3-1.3-1-1zM8 12.6l9.8-6.1c.5-.3.9-.1.6.2L10 13.5l-.3 4.2-1.7-5.1z',
-            'linkedin' => 'M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM10 9h4v2h.1c.6-1 2-2.1 4-2.1 4.3 0 5.1 2.8 5.1 6.5V21h-4v-5.1c0-1.2 0-2.8-1.7-2.8s-2 1.3-2 2.7V21h-4z',
-            'reddit'   => 'M22 12a4 4 0 0 0-3.5-3.97l-2.2-1a1 1 0 0 0-1.3.6l-.7 2A8 8 0 1 0 20 16a2.5 2.5 0 1 0-2.5-2.5A2.5 2.5 0 1 0 22 12zM8.5 13A1.5 1.5 0 1 1 10 14.5 1.5 1.5 0 0 1 8.5 13zm7 0A1.5 1.5 0 1 1 17 14.5 1.5 1.5 0 0 1 15.5 13zM12 18c-1.7 0-3.2-.7-4.2-1.7a.5.5 0 1 1 .7-.7c.8.8 2 1.4 3.5 1.4s2.7-.6 3.5-1.4a.5.5 0 1 1 .7.7C15.2 17.3 13.7 18 12 18z',
-            'email'    => 'M2 4h20v16H2V4zm10 7L3.5 6.5h17L12 11zm0 2l8.5-5.5V18h-17V7.5L12 13z',
-            'copy'     => 'M8 2h10v14H8zM6 4H4v16h12v-2H6z',
-            'native'   => 'M12 2l3 5h5l-4 4 2 7-6-4-6 4 2-7-4-4h5z',
+        static $cache = [];
+
+        $map = [
+            'facebook' => 'facebook',
+            'x'        => 'x',
+            'whatsapp' => 'whatsapp',
+            'telegram' => 'telegram',
+            'linkedin' => 'linkedin',
+            'reddit'   => 'reddit',
+            'email'    => 'email',
+            'copy'     => 'copy',
+            'native'   => 'native',
         ];
-        $d = $paths[$net] ?? 'M0 0h24v24H0z';
-        return '<svg class="waki-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="'.esc_attr($d).'"/></svg>';
+
+        if (!isset($map[$net])) {
+            return $this->fallback_svg();
+        }
+
+        if (!array_key_exists($net, $cache)) {
+            $file = plugin_dir_path(__FILE__) . 'assets/icons/' . $map[$net] . '.svg';
+            $svg  = '';
+
+            if (is_readable($file)) {
+                $svg = trim(file_get_contents($file));
+                if ($svg !== '') {
+                    $svg = preg_replace('/<\?xml[^>]*>/i', '', $svg);
+                    $allowed = [
+                        'svg'  => [
+                            'xmlns'        => true,
+                            'viewBox'      => true,
+                            'viewbox'      => true,
+                            'fill'         => true,
+                            'class'        => true,
+                            'aria-hidden'  => true,
+                            'focusable'    => true,
+                            'role'         => true,
+                        ],
+                        'path' => [
+                            'd'    => true,
+                            'fill' => true,
+                        ],
+                    ];
+                    if (function_exists('wp_kses')) {
+                        $svg = wp_kses($svg, $allowed);
+                    }
+                }
+            }
+
+            $cache[$net] = $svg ?: $this->fallback_svg();
+        }
+
+        return $cache[$net];
+    }
+
+    private function fallback_svg() {
+        return '<svg class="waki-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="currentColor"><path d="M12 3l5 5h-3v6h-4V8H7l5-5z"/><path d="M5 17h14v4H5z"/></svg>';
     }
 
     /** ---------- Assets ---------- */
