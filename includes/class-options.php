@@ -38,6 +38,9 @@ class Options
             'sticky_gap'                => 8,
             'sticky_radius'             => 9999,
             'sticky_selectors'          => '.entry-content',
+            'reactions_inline_enabled'  => 0,
+            'reactions_sticky_enabled'  => 0,
+            'reactions_enabled'         => $this->default_reaction_toggles(),
             'smart_share_enabled'       => 0,
             'smart_share_selectors'     => ".entry-content h2, .entry-content h3",
             'smart_share_matrix'        => [
@@ -97,6 +100,9 @@ class Options
         $options['floating_breakpoint']    = $options['sticky_breakpoint'];
         $options['gap']                    = (string) $options['share_gap'];
         $options['radius']                 = (string) $options['share_radius'];
+        $options['reactions_inline_enabled'] = !empty($options['reactions_inline_enabled']) ? 1 : 0;
+        $options['reactions_sticky_enabled'] = !empty($options['reactions_sticky_enabled']) ? 1 : 0;
+        $options['reactions_enabled']        = $this->normalize_reaction_toggles($options['reactions_enabled'] ?? [], true);
 
         return $options;
     }
@@ -140,6 +146,13 @@ class Options
         $output['sticky_radius']      = max(0, intval($input['sticky_radius'] ?? $defaults['sticky_radius']));
         $output['sticky_selectors']   = sanitize_text_field($input['sticky_selectors'] ?? $defaults['sticky_selectors']);
 
+        $output['reactions_inline_enabled'] = !empty($input['reactions_inline_enabled']) ? 1 : 0;
+        $output['reactions_sticky_enabled'] = !empty($input['reactions_sticky_enabled']) ? 1 : 0;
+        $output['reactions_enabled']        = $this->normalize_reaction_toggles($input['reactions_enabled'] ?? [], false);
+        if (!array_filter($output['reactions_enabled'])) {
+            $output['reactions_enabled'] = $this->default_reaction_toggles();
+        }
+
         $output['smart_share_enabled']   = !empty($input['smart_share_enabled']) ? 1 : 0;
         $output['smart_share_selectors'] = sanitize_textarea_field($input['smart_share_selectors'] ?? $defaults['smart_share_selectors']);
         $output['smart_share_matrix']    = $this->normalize_matrix($input['smart_share_matrix'] ?? $defaults['smart_share_matrix']);
@@ -178,6 +191,37 @@ class Options
         unset($output['current_tab']);
 
         return $output;
+    }
+
+    private function default_reaction_toggles(): array
+    {
+        return [
+            'like'       => 1,
+            'love'       => 1,
+            'celebrate'  => 1,
+            'insightful' => 1,
+            'support'    => 1,
+        ];
+    }
+
+    private function normalize_reaction_toggles($value, bool $fallback_to_defaults): array
+    {
+        if (!is_array($value)) {
+            $value = [];
+        }
+
+        $defaults = $this->default_reaction_toggles();
+        $normalized = [];
+
+        foreach ($defaults as $slug => $enabled) {
+            if (array_key_exists($slug, $value)) {
+                $normalized[$slug] = !empty($value[$slug]) ? 1 : 0;
+            } else {
+                $normalized[$slug] = $fallback_to_defaults ? (int) $enabled : 0;
+            }
+        }
+
+        return $normalized;
     }
 
     /**

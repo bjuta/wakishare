@@ -14,6 +14,9 @@ class Admin
     /** @var Networks */
     private $networks;
 
+    /** @var Reactions */
+    private $reactions;
+
     /** @var string */
     private $slug;
 
@@ -23,10 +26,11 @@ class Admin
     /** @var array|null */
     private $cached_values = null;
 
-    public function __construct(Options $options, Networks $networks, string $slug, string $text_domain)
+    public function __construct(Options $options, Networks $networks, Reactions $reactions, string $slug, string $text_domain)
     {
         $this->options     = $options;
         $this->networks    = $networks;
+        $this->reactions   = $reactions;
         $this->slug        = $slug;
         $this->text_domain = $text_domain;
     }
@@ -62,6 +66,7 @@ class Admin
         $this->register_share_settings();
         $this->register_sticky_settings();
         $this->register_smart_settings();
+        $this->register_reaction_settings();
         $this->register_analytics_settings();
     }
 
@@ -69,6 +74,19 @@ class Admin
     {
         if (!is_array($input)) {
             $input = [];
+        }
+
+        if (!empty($_POST['your_share_reset_reactions'])) {
+            $nonce = isset($_POST['your_share_reset_reactions_nonce']) ? wp_unslash($_POST['your_share_reset_reactions_nonce']) : '';
+
+            if (wp_verify_nonce($nonce, 'your_share_reset_reactions')) {
+                if (current_user_can('manage_options')) {
+                    $this->reactions->reset_counts();
+                    add_settings_error($this->options->key(), 'reactions_reset', __('Reaction counts have been reset.', $this->text_domain), 'updated');
+                }
+            } else {
+                add_settings_error($this->options->key(), 'reactions_reset_failed', __('Security check failed. Reaction counts were not reset.', $this->text_domain), 'error');
+            }
         }
 
         unset($input['current_tab']);
@@ -321,6 +339,53 @@ class Admin
             [$this, 'field_smart_share_summary'],
             $page,
             'your_share_smart_settings'
+        );
+    }
+
+    private function register_reaction_settings(): void
+    {
+        $page = $this->page_id('reactions');
+
+        add_settings_section(
+            'your_share_reactions_settings',
+            __('Reaction bar', $this->text_domain),
+            function (): void {
+                echo '<p>' . esc_html__('Offer quick emoji feedback alongside your share buttons.', $this->text_domain) . '</p>';
+            },
+            $page
+        );
+
+        add_settings_field(
+            'reactions_display',
+            __('Display options', $this->text_domain),
+            [$this, 'field_reactions_display'],
+            $page,
+            'your_share_reactions_settings'
+        );
+
+        add_settings_field(
+            'reactions_emojis',
+            __('Available emojis', $this->text_domain),
+            [$this, 'field_reactions_emojis'],
+            $page,
+            'your_share_reactions_settings'
+        );
+
+        add_settings_section(
+            'your_share_reactions_maintenance',
+            __('Maintenance', $this->text_domain),
+            function (): void {
+                echo '<p>' . esc_html__('Reset stored counts when you want to start fresh.', $this->text_domain) . '</p>';
+            },
+            $page
+        );
+
+        add_settings_field(
+            'reactions_reset',
+            __('Reset totals', $this->text_domain),
+            [$this, 'field_reactions_reset'],
+            $page,
+            'your_share_reactions_maintenance'
         );
     }
 
@@ -782,12 +847,65 @@ class Admin
         <?php
     }
 
+    public function field_reactions_display(): void
+    {
+        $values = $this->values();
+        ?>
+        <div class="your-share-field-stack">
+            <label class="your-share-toggle">
+                <input type="checkbox" name="<?php echo esc_attr($this->name('reactions_inline_enabled')); ?>" value="1" <?php checked($values['reactions_inline_enabled'] ?? 0, 1); ?>>
+                <?php esc_html_e('Show reactions below inline share bars', $this->text_domain); ?>
+            </label>
+            <label class="your-share-toggle">
+                <input type="checkbox" name="<?php echo esc_attr($this->name('reactions_sticky_enabled')); ?>" value="1" <?php checked($values['reactions_sticky_enabled'] ?? 0, 1); ?>>
+                <?php esc_html_e('Enable a floating reaction bar on singular content', $this->text_domain); ?>
+            </label>
+        </div>
+        <p class="description"><?php esc_html_e('Inline reactions appear directly beneath rendered share shortcodes. The floating bar is printed in the footer when viewing singular posts or pages.', $this->text_domain); ?></p>
+        <?php
+    }
+
+    public function field_reactions_emojis(): void
+    {
+        $values  = $this->values();
+        $enabled = $values['reactions_enabled'] ?? [];
+        $emojis  = $this->reactions->emojis();
+        ?>
+        <div class="your-share-field-grid your-share-reaction-grid">
+            <?php foreach ($emojis as $slug => $emoji) :
+                $is_enabled = !empty($enabled[$slug]);
+                ?>
+                <label class="your-share-reaction-option">
+                    <input type="checkbox" name="<?php echo esc_attr($this->name('reactions_enabled') . '[' . $slug . ']'); ?>" value="1" <?php checked($is_enabled, true); ?>>
+                    <span class="your-share-reaction-symbol" aria-hidden="true"><?php echo esc_html($emoji['emoji']); ?></span>
+                    <span class="your-share-reaction-text"><?php echo esc_html($emoji['label']); ?></span>
+                </label>
+            <?php endforeach; ?>
+        </div>
+        <p class="description"><?php esc_html_e('Toggle the emoji set available to readers. At least one reaction must remain enabled.', $this->text_domain); ?></p>
+        <?php
+    }
+
+    public function field_reactions_reset(): void
+    {
+        ?>
+        <p>
+            <button type="submit" class="button button-secondary" name="your_share_reset_reactions" value="1" onclick="return confirm('<?php echo esc_js(__('Reset all reaction counts? This action cannot be undone.', $this->text_domain)); ?>');">
+                <?php esc_html_e('Reset reaction counts', $this->text_domain); ?>
+            </button>
+        </p>
+        <?php wp_nonce_field('your_share_reset_reactions', 'your_share_reset_reactions_nonce'); ?>
+        <p class="description"><?php esc_html_e('Clears totals stored in the reactions table for every post.', $this->text_domain); ?></p>
+        <?php
+    }
+
     private function tabs(): array
     {
         return [
             'share'     => __('Share', $this->text_domain),
             'sticky'    => __('Sticky Bar', $this->text_domain),
             'smart'     => __('Smart Share', $this->text_domain),
+            'reactions' => __('Reactions', $this->text_domain),
             'analytics' => __('Analytics & UTM', $this->text_domain),
         ];
     }

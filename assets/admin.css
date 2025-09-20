@@ -186,6 +186,33 @@
   padding: 0.25rem 0.6rem;
 }
 
+.your-share-reaction-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.your-share-reaction-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid #dcdcde;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  background: #fff;
+}
+
+.your-share-reaction-option input {
+  margin: 0;
+}
+
+.your-share-reaction-symbol {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.your-share-reaction-text {
+  font-weight: 600;
+}
+
 @media (max-width: 782px) {
   .your-share-tab-panel {
     padding: 1rem;

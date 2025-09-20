@@ -33,6 +33,8 @@ class Plugin
 
         $this->container->get(Asset_Loader::class)->register_hooks();
         $this->container->get(Admin::class)->register_hooks();
+        $this->container->get(Reactions::class)->register_hooks();
+        $this->container->get(Rest::class)->register_hooks();
         $this->container->get(Shortcode::class)->register_hooks();
 
         do_action('your_share_plugin_booted', $this);
@@ -70,12 +72,21 @@ class Plugin
             return new UTM($c->get(Options::class));
         });
 
+        $this->container->set(Reactions::class, function (Container $c): Reactions {
+            return new Reactions($c->get(Options::class), self::TEXT_DOMAIN);
+        });
+
+        $this->container->set(Rest::class, function (Container $c): Rest {
+            return new Rest($c->get(Reactions::class), self::TEXT_DOMAIN);
+        });
+
         $this->container->set(Render::class, function (Container $c): Render {
             return new Render(
                 $c->get(Options::class),
                 $c->get(Networks::class),
                 $c->get(UTM::class),
                 $c->get(Icons::class),
+                $c->get(Reactions::class),
                 self::TEXT_DOMAIN
             );
         });
@@ -85,7 +96,7 @@ class Plugin
         });
 
         $this->container->set(Admin::class, function (Container $c): Admin {
-            return new Admin($c->get(Options::class), $c->get(Networks::class), self::SLUG, self::TEXT_DOMAIN);
+            return new Admin($c->get(Options::class), $c->get(Networks::class), $c->get(Reactions::class), self::SLUG, self::TEXT_DOMAIN);
         });
 
         $this->container->set(Shortcode::class, function (Container $c): Shortcode {
