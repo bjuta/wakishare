@@ -27,6 +27,17 @@ class Render
     private $text_domain;
 
     public function __construct(Options $options, Networks $networks, UTM $utm, Icons $icons, Reactions $reactions, string $text_domain)
+
+    /** @var bool */
+    private $media_config_localized = false;
+
+    public function __construct(Options $options, Networks $networks, UTM $utm, Icons $icons, string $text_domain)
+
+    /** @var Counts|null */
+    private $counts;
+
+    public function __construct(Options $options, Networks $networks, UTM $utm, Icons $icons, string $text_domain, ?Counts $counts = null)
+
     {
         $this->options     = $options;
         $this->networks    = $networks;
@@ -34,14 +45,17 @@ class Render
         $this->icons       = $icons;
         $this->reactions   = $reactions;
         $this->text_domain = $text_domain;
+        add_action('wp_enqueue_scripts', [$this, 'register_media_overlays'], 20);
+        $this->counts      = $counts;
     }
 
     public function render(array $context, array $atts): string
     {
-        $opts      = $this->options->all();
-        $map       = $this->networks->all();
-        $share_ctx = $this->current_share_context($atts);
-        $allowed   = array_keys($map);
+        $opts       = $this->options->all();
+        $map        = $this->networks->all();
+        $share_ctx  = $this->current_share_context($atts);
+        $allowed    = array_keys($map);
+        $placement  = $context['placement'] ?? 'inline';
 
         $geo       = $this->resolve_geo_country($opts, $context, $atts);
         $matrix    = $opts['smart_share_matrix'] ?? [];
@@ -58,7 +72,7 @@ class Render
             $networks = $this->prepare_networks($defaults, $allowed);
         }
 
-        if (!in_array('native', $networks, true)) {
+        if ($placement !== 'overlay' && !in_array('native', $networks, true)) {
             $networks[] = 'native';
         }
 
@@ -68,14 +82,17 @@ class Render
             'waki-style-' . sanitize_html_class($atts['style'] ?? 'solid'),
             'waki-labels-' . sanitize_html_class($atts['labels'] ?? 'auto'),
             !empty($atts['brand']) && (string) $atts['brand'] === '1' ? 'is-brand' : 'is-mono',
+            'waki-share-placement-' . sanitize_html_class($placement),
         ];
 
         $defaults = $this->options->defaults();
-        $placement = $context['placement'] ?? 'inline';
 
         if ($placement === 'floating') {
             $gap    = absint($opts['sticky_gap'] ?? $defaults['sticky_gap']);
             $radius = absint($opts['sticky_radius'] ?? $defaults['sticky_radius']);
+        } elseif ($placement === 'overlay') {
+            $gap    = absint($opts['share_gap'] ?? $defaults['share_gap']);
+            $radius = absint($opts['share_radius'] ?? $defaults['share_radius']);
         } else {
             $gap    = absint($opts['share_gap'] ?? $defaults['share_gap']);
             $radius = absint($opts['share_radius'] ?? $defaults['share_radius']);
@@ -89,12 +106,18 @@ class Render
             $radius = absint($placement === 'floating' ? $defaults['sticky_radius'] : $defaults['share_radius']);
         }
 
+        if ($placement === 'overlay') {
+            $gap = max(4, $gap);
+        }
+
         $style_inline = sprintf('--waki-gap:%dpx;--waki-radius:%dpx;', $gap, $radius);
 
         if ($placement === 'floating') {
             $classes[]    = 'waki-share-floating';
             $classes[]    = 'pos-' . sanitize_html_class($context['position'] ?? 'left');
             $style_inline .= sprintf('--waki-breakpoint:%dpx;', intval($context['breakpoint'] ?? 1024));
+        } elseif ($placement === 'overlay') {
+            $classes[] = 'waki-share-overlay-share';
         } else {
             $classes[] = 'waki-share-inline';
             $classes[] = 'align-' . sanitize_html_class($context['align'] ?? 'left');
@@ -103,13 +126,31 @@ class Render
         $title = $share_ctx['title'];
         $base  = $share_ctx['url'];
 
+        $counts_state = $this->prepare_counts_state($opts, $networks, $share_ctx);
+
+        if ($counts_state['enabled']) {
+            $classes[] = 'waki-has-counts';
+        }
+
         ob_start();
         ?>
         <?php $data_attrs = $this->format_attributes([
             'data-your-share-country'        => $geo['country'],
             'data-your-share-country-source' => $geo['source'],
+            'data-your-share-placement'      => $placement,
+            'data-your-share-counts'         => $counts_state['enabled'] ? '1' : '',
+            'data-your-share-post'           => $counts_state['post'],
+            'data-your-share-networks'       => $counts_state['network_list'],
+            'data-your-share-count-url'      => $counts_state['url'],
+            'data-your-share-count-ttl'      => $counts_state['ttl'],
         ]); ?>
         <div class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr($style_inline); ?>"<?php echo $data_attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+            <?php if ($counts_state['enabled'] && !empty($opts['counts_show_total'])) : ?>
+                <div class="waki-share-total" data-your-share-total>
+                    <span class="waki-total-label"><?php esc_html_e('Total shares', $this->text_domain); ?></span>
+                    <span class="waki-total-value" data-your-share-total-value data-value="<?php echo esc_attr((string) $counts_state['total']); ?>"><?php echo esc_html($this->format_count($counts_state['total'])); ?></span>
+                </div>
+            <?php endif; ?>
             <?php foreach ($networks as $network) :
                 if (!isset($map[$network])) {
                     continue;
@@ -124,6 +165,7 @@ class Render
                     $href    = $this->build_share_url($network, $utm_url, $title);
                 }
 
+                $count_value = $counts_state['networks'][$network]['total'] ?? 0;
                 $attr = [
                     'class'      => 'waki-btn',
                     'data-net'   => esc_attr($network),
@@ -144,6 +186,9 @@ class Render
                 <a <?php foreach ($attr as $key => $value) { echo esc_attr($key) . '="' . esc_attr($value) . '" '; } ?>>
                     <?php echo $this->icons->svg($network); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                     <span class="waki-label"><?php echo esc_html($label); ?></span>
+                    <?php if ($counts_state['enabled'] && !empty($opts['counts_show_badges'])) : ?>
+                        <span class="waki-count" data-your-share-count="<?php echo esc_attr($network); ?>" data-value="<?php echo esc_attr((string) $count_value); ?>"><?php echo esc_html($this->format_count($count_value)); ?></span>
+                    <?php endif; ?>
                 </a>
             <?php endforeach; ?>
         </div>
@@ -160,6 +205,201 @@ class Render
         ?>
         <?php
         return trim((string) ob_get_clean());
+    }
+
+    public function register_media_overlays(): void
+    {
+        if ($this->media_config_localized || is_admin()) {
+            return;
+        }
+
+        if (!wp_script_is('your-share', 'enqueued') && !wp_script_is('your-share', 'registered')) {
+            return;
+        }
+
+        $options = $this->options->all();
+
+        if (!apply_filters('your_share_media_overlay_enabled', true, $options)) {
+            return;
+        }
+
+        $raw_selectors = $options['media_overlay_selectors'] ?? '';
+        $selectors     = $this->normalize_selector_list($raw_selectors);
+        $selectors     = apply_filters('your_share_media_overlay_selectors', $selectors, $options);
+
+        $selectors = array_values(array_filter($selectors, static function ($selector) {
+            return is_string($selector) && trim($selector) !== '';
+        }));
+
+        if (empty($selectors)) {
+            return;
+        }
+
+        $allowed_positions = ['top-start', 'top-end', 'bottom-start', 'bottom-end', 'center'];
+        $position          = $options['media_overlay_position'] ?? 'top-end';
+        if (!in_array($position, $allowed_positions, true)) {
+            $position = 'top-end';
+        }
+
+        $allowed_triggers = ['hover', 'always'];
+        $trigger          = $options['media_overlay_trigger'] ?? 'hover';
+        if (!in_array($trigger, $allowed_triggers, true)) {
+            $trigger = 'hover';
+        }
+
+        $all_networks = array_keys($this->networks->all());
+
+        $default_overlay_networks = $options['share_networks_default'];
+        if (!is_array($default_overlay_networks)) {
+            $default_overlay_networks = $this->options->defaults()['share_networks_default'];
+        }
+        $default_overlay_networks = array_slice($default_overlay_networks, 0, 4);
+
+        $networks = $this->prepare_networks($default_overlay_networks, $all_networks);
+        $networks = apply_filters('your_share_media_overlay_networks', $networks, $options);
+        $networks = $this->prepare_networks($networks, $all_networks);
+
+        if (empty($networks)) {
+            $networks = $this->prepare_networks($this->options->defaults()['share_networks_default'], $all_networks);
+        }
+
+        $atts = [
+            'networks'     => implode(',', $networks),
+            'labels'       => 'hide',
+            'style'        => $options['share_style'],
+            'size'         => 'sm',
+            'align'        => 'left',
+            'brand'        => $options['share_brand_colors'] ? '1' : '0',
+            'utm_campaign' => '',
+            'url'          => '',
+            'title'        => '',
+        ];
+
+        $context = [
+            'placement' => 'overlay',
+        ];
+
+        $markup = trim($this->render($context, $atts));
+        $markup = apply_filters('your_share_media_overlay_markup', $markup, $options, $context, $atts);
+
+        if ($markup === '') {
+            return;
+        }
+
+        $config = [
+            'selectors'   => $selectors,
+            'position'    => $position,
+            'trigger'     => $trigger,
+            'markup'      => $markup,
+            'toggleLabel' => __('Share this media', $this->text_domain),
+            'toggleText'  => __('Share', $this->text_domain),
+        ];
+
+        $config = apply_filters('your_share_media_overlay_config', $config, $options);
+
+        if (empty($config['selectors']) || empty($config['markup'])) {
+            return;
+        }
+
+        wp_localize_script('your-share', 'yourShareMedia', $config);
+
+        $this->media_config_localized = true;
+
+    public function render_follow(array $atts): string
+    {
+        $options  = $this->options->all();
+        $defaults = $this->options->defaults();
+        $map      = $this->networks->follow();
+        $allowed  = array_keys($map);
+
+        $networks = $this->prepare_networks($atts['networks'] ?? '', $allowed);
+
+        if (empty($networks)) {
+            $networks = $this->prepare_networks($options['follow_networks'] ?? [], $allowed);
+        }
+
+        $profiles = $options['follow_profiles'] ?? [];
+
+        $style  = $atts['style'] ?? ($options['share_style'] ?? 'solid');
+        $size   = $atts['size'] ?? ($options['share_size'] ?? 'md');
+        $align  = $atts['align'] ?? ($options['share_align'] ?? 'left');
+        $labels = $atts['labels'] ?? 'show';
+        $brand  = isset($atts['brand']) ? (string) $atts['brand'] : ($options['share_brand_colors'] ? '1' : '0');
+
+        $gap    = absint($options['share_gap'] ?? $defaults['share_gap']);
+        $radius = absint($options['share_radius'] ?? $defaults['share_radius']);
+
+        if ($gap <= 0) {
+            $gap = absint($defaults['share_gap']);
+        }
+
+        if ($radius <= 0) {
+            $radius = absint($defaults['share_radius']);
+        }
+
+        $classes = [
+            'waki-share',
+            'waki-follow',
+            'waki-share-inline',
+            'waki-size-' . sanitize_html_class($size),
+            'waki-style-' . sanitize_html_class($style),
+            'waki-labels-' . sanitize_html_class($labels),
+            'align-' . sanitize_html_class($align),
+            $brand === '1' ? 'is-brand' : 'is-mono',
+        ];
+
+        $style_inline = sprintf('--waki-gap:%dpx;--waki-radius:%dpx;', $gap, $radius);
+
+        $has_links = false;
+
+        ob_start();
+        ?>
+        <div class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr($style_inline); ?>">
+            <?php foreach ($networks as $network) :
+                if (!isset($map[$network])) {
+                    continue;
+                }
+
+                $profile = $profiles[$network] ?? '';
+
+                if ($profile === '') {
+                    continue;
+                }
+
+                [$label] = $map[$network];
+                $href     = esc_url($profile);
+
+                if ($href === '') {
+                    continue;
+                }
+
+                $has_links = true;
+
+                $attr = [
+                    'class'      => 'waki-btn',
+                    'data-net'   => $network,
+                    'href'       => $href,
+                    'target'     => '_blank',
+                    'rel'        => 'me noopener',
+                    'aria-label' => sprintf(__('Follow on %s', $this->text_domain), $label),
+                ];
+
+                $attr = apply_filters('your_share_follow_attributes', $attr, $network, $atts, $options);
+                ?>
+                <a <?php foreach ($attr as $key => $value) { echo esc_attr($key) . '="' . esc_attr($value) . '" '; } ?>>
+                    <?php echo $this->icons->svg($network); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    <span class="waki-label"><?php echo esc_html($label); ?></span>
+                </a>
+            <?php endforeach; ?>
+        </div>
+        <?php
+        $html = trim((string) ob_get_clean());
+
+        if (!$has_links) {
+            return '';
+        }
+
+        return $html;
     }
 
     private function current_share_context(array $atts): array
@@ -335,6 +575,78 @@ class Render
         return $output;
     }
 
+    private function prepare_counts_state(array $options, array $networks, array $share_ctx): array
+    {
+        $post_id = $share_ctx['post'] instanceof \WP_Post ? (int) $share_ctx['post']->ID : 0;
+        $url     = $share_ctx['url'];
+
+        $trackable = array_values(array_filter($networks, static function ($network) {
+            return !in_array($network, ['copy', 'native'], true);
+        }));
+
+        $state = [
+            'enabled'      => false,
+            'total'        => 0,
+            'ttl'          => '',
+            'networks'     => [],
+            'post'         => $post_id > 0 ? (string) $post_id : ($trackable ? '0' : ''),
+            'network_list' => $trackable ? implode(',', $trackable) : '',
+            'url'          => $trackable ? esc_url_raw($url) : '',
+        ];
+
+        if (!$this->counts instanceof Counts) {
+            return $state;
+        }
+
+        if (empty($options['counts_enabled']) || empty($trackable)) {
+            return $state;
+        }
+
+        $counts = $this->counts->get_counts($post_id, $url, $trackable);
+
+        if (empty($counts['enabled'])) {
+            return $state;
+        }
+
+        foreach ($trackable as $network) {
+            if (!isset($counts['networks'][$network])) {
+                $counts['networks'][$network] = [
+                    'total' => 0,
+                ];
+            }
+        }
+
+        $state['enabled']  = true;
+        $state['networks'] = $counts['networks'];
+        $state['total']    = isset($counts['total']) ? (int) $counts['total'] : 0;
+        $state['ttl']      = isset($counts['ttl']) ? (int) $counts['ttl'] : 0;
+
+        return $state;
+    }
+
+    private function format_count(int $value): string
+    {
+        if ($value >= 1000000) {
+            $formatted = round($value / 1000000, 1);
+            if (abs($formatted - floor($formatted)) < 0.1) {
+                $formatted = (int) $formatted;
+            }
+
+            return sprintf('%sM', $formatted);
+        }
+
+        if ($value >= 1000) {
+            $formatted = round($value / 1000, 1);
+            if (abs($formatted - floor($formatted)) < 0.1) {
+                $formatted = (int) $formatted;
+            }
+
+            return sprintf('%sK', $formatted);
+        }
+
+        return number_format_i18n($value);
+    }
+
     private function build_share_url(string $network, string $base_url, string $title): string
     {
         $url   = rawurlencode($base_url);
@@ -358,5 +670,28 @@ class Render
             default:
                 return $base_url;
         }
+    }
+
+    private function normalize_selector_list($value): array
+    {
+        if (is_array($value)) {
+            $selectors = $value;
+        } else {
+            $selectors = preg_split('/[\r\n,]+/', (string) $value);
+        }
+
+        if (!$selectors) {
+            return [];
+        }
+
+        $selectors = array_map(static function ($selector) {
+            return trim((string) $selector);
+        }, $selectors);
+
+        $selectors = array_filter($selectors, static function ($selector) {
+            return $selector !== '';
+        });
+
+        return array_values(array_unique($selectors));
     }
 }

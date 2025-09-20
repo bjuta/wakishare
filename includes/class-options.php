@@ -32,6 +32,15 @@ class Options
             'share_gap'                 => 8,
             'share_radius'              => 9999,
             'share_networks_default'    => ['facebook', 'x', 'whatsapp', 'telegram', 'linkedin', 'reddit', 'email', 'copy'],
+            'follow_networks'           => ['x', 'instagram', 'facebook-page', 'tiktok', 'youtube', 'linkedin'],
+            'follow_profiles'           => [
+                'x'             => '',
+                'instagram'     => '',
+                'facebook-page' => '',
+                'tiktok'        => '',
+                'youtube'       => '',
+                'linkedin'      => '',
+            ],
             'sticky_enabled'            => 0,
             'sticky_position'           => 'left',
             'sticky_breakpoint'         => 1024,
@@ -52,6 +61,9 @@ class Options
                 'BR' => ['whatsapp', 'facebook', 'telegram', 'email', 'copy'],
                 'DE' => ['whatsapp', 'facebook', 'linkedin', 'email', 'copy'],
             ],
+            'media_overlay_selectors'   => ".entry-content img, .entry-content video, .entry-content iframe[src*='youtube'], .entry-content iframe[src*='vimeo']",
+            'media_overlay_position'    => 'top-end',
+            'media_overlay_trigger'     => 'hover',
             'geo_source'                => 'auto',
             'enable_utm'                => 1,
             'utm_medium'                => 'social',
@@ -61,6 +73,14 @@ class Options
             'analytics_events'          => 1,
             'analytics_console'         => 0,
             'analytics_ga4'             => 0,
+            'counts_enabled'            => 0,
+            'counts_show_badges'        => 1,
+            'counts_show_total'         => 1,
+            'counts_refresh_interval'   => 60,
+            'counts_facebook_app_id'    => '',
+            'counts_facebook_app_secret'=> '',
+            'counts_reddit_app_id'      => '',
+            'counts_reddit_app_secret'  => '',
         ];
 
         // Backwards compatibility aliases for legacy code paths.
@@ -86,7 +106,8 @@ class Options
             $stored = [];
         }
 
-        $options = wp_parse_args($stored, $this->defaults());
+        $defaults = $this->defaults();
+        $options  = wp_parse_args($stored, $defaults);
 
         $options['share_networks_default'] = $this->normalize_networks($options['share_networks_default']);
         $options['networks']               = implode(',', $options['share_networks_default']);
@@ -103,7 +124,12 @@ class Options
         $options['reactions_inline_enabled'] = !empty($options['reactions_inline_enabled']) ? 1 : 0;
         $options['reactions_sticky_enabled'] = !empty($options['reactions_sticky_enabled']) ? 1 : 0;
         $options['reactions_enabled']        = $this->normalize_reaction_toggles($options['reactions_enabled'] ?? [], true);
-
+        $options['counts_enabled']         = !empty($options['counts_enabled']) ? 1 : 0;
+        $options['counts_show_badges']     = !empty($options['counts_show_badges']) ? 1 : 0;
+        $options['counts_show_total']      = !empty($options['counts_show_total']) ? 1 : 0;
+        $options['counts_refresh_interval']= max(0, (int) $options['counts_refresh_interval']);
+        $options['follow_networks']        = $this->normalize_follow_networks($options['follow_networks'], $defaults['follow_networks']);
+        $options['follow_profiles']        = $this->normalize_follow_profiles($options['follow_profiles'], $defaults['follow_profiles']);
         return $options;
     }
 
@@ -138,6 +164,9 @@ class Options
         $output['share_gap']    = max(0, intval($input['share_gap'] ?? $defaults['share_gap']));
         $output['share_radius'] = max(0, intval($input['share_radius'] ?? $defaults['share_radius']));
 
+        $output['follow_networks'] = $this->normalize_follow_networks($input['follow_networks'] ?? $defaults['follow_networks'], $defaults['follow_networks']);
+        $output['follow_profiles'] = $this->normalize_follow_profiles($input['follow_profiles'] ?? [], $defaults['follow_profiles']);
+
         $output['sticky_enabled']     = !empty($input['sticky_enabled']) ? 1 : 0;
         $output['sticky_position']    = in_array($input['sticky_position'] ?? '', ['left', 'right'], true)
             ? $input['sticky_position'] : $defaults['sticky_position'];
@@ -160,6 +189,22 @@ class Options
             $output['smart_share_matrix'] = $this->normalize_matrix($defaults['smart_share_matrix']);
         }
 
+        $output['media_overlay_selectors'] = sanitize_textarea_field($input['media_overlay_selectors'] ?? $defaults['media_overlay_selectors']);
+
+        $position = sanitize_key($input['media_overlay_position'] ?? $defaults['media_overlay_position']);
+        $allowed_positions = ['top-start', 'top-end', 'bottom-start', 'bottom-end', 'center'];
+        if (!in_array($position, $allowed_positions, true)) {
+            $position = $defaults['media_overlay_position'];
+        }
+        $output['media_overlay_position'] = $position;
+
+        $trigger = sanitize_key($input['media_overlay_trigger'] ?? $defaults['media_overlay_trigger']);
+        $allowed_triggers = ['hover', 'always'];
+        if (!in_array($trigger, $allowed_triggers, true)) {
+            $trigger = $defaults['media_overlay_trigger'];
+        }
+        $output['media_overlay_trigger'] = $trigger;
+
         $geo_source = sanitize_key($input['geo_source'] ?? $defaults['geo_source']);
         if (!in_array($geo_source, ['auto', 'ip', 'manual'], true)) {
             $geo_source = $defaults['geo_source'];
@@ -175,6 +220,14 @@ class Options
         $output['analytics_events']  = !empty($input['analytics_events']) ? 1 : 0;
         $output['analytics_console'] = !empty($input['analytics_console']) ? 1 : 0;
         $output['analytics_ga4']     = !empty($input['analytics_ga4']) ? 1 : 0;
+        $output['counts_enabled']    = !empty($input['counts_enabled']) ? 1 : 0;
+        $output['counts_show_badges'] = !empty($input['counts_show_badges']) ? 1 : 0;
+        $output['counts_show_total'] = !empty($input['counts_show_total']) ? 1 : 0;
+        $output['counts_refresh_interval'] = max(0, intval($input['counts_refresh_interval'] ?? $defaults['counts_refresh_interval']));
+        $output['counts_facebook_app_id']     = sanitize_text_field($input['counts_facebook_app_id'] ?? '');
+        $output['counts_facebook_app_secret'] = sanitize_text_field($input['counts_facebook_app_secret'] ?? '');
+        $output['counts_reddit_app_id']       = sanitize_text_field($input['counts_reddit_app_id'] ?? '');
+        $output['counts_reddit_app_secret']   = sanitize_text_field($input['counts_reddit_app_secret'] ?? '');
 
         // Legacy aliases to keep existing rendering logic functioning.
         $output['brand_colors']        = $output['share_brand_colors'];
@@ -246,6 +299,53 @@ class Options
         }, $value));
 
         return array_values(array_unique($value));
+    }
+
+    private function normalize_follow_networks($value, array $allowed): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
+            $value = [];
+        }
+
+        $value = array_filter(array_map(static function ($item) {
+            return sanitize_key((string) $item);
+        }, $value));
+
+        $value = array_values(array_intersect($value, $allowed));
+
+        foreach ($allowed as $slug) {
+            if (!in_array($slug, $value, true)) {
+                $value[] = $slug;
+            }
+        }
+
+        return $value;
+    }
+
+    private function normalize_follow_profiles($value, array $defaults): array
+    {
+        if (!is_array($value)) {
+            $value = [];
+        }
+
+        $profiles = [];
+
+        foreach ($defaults as $slug => $default_url) {
+            $url = '';
+
+            if (isset($value[$slug])) {
+                $candidate = trim((string) $value[$slug]);
+                $url       = $candidate !== '' ? esc_url_raw($candidate) : '';
+            }
+
+            $profiles[$slug] = $url;
+        }
+
+        return $profiles;
     }
 
     /**

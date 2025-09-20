@@ -32,6 +32,7 @@ class Plugin
         add_action('plugins_loaded', [$this, 'load_textdomain']);
 
         $this->container->get(Asset_Loader::class)->register_hooks();
+        $this->container->get(Counts::class)->register_hooks();
         $this->container->get(Admin::class)->register_hooks();
         $this->container->get(Reactions::class)->register_hooks();
         $this->container->get(Rest::class)->register_hooks();
@@ -87,12 +88,13 @@ class Plugin
                 $c->get(UTM::class),
                 $c->get(Icons::class),
                 $c->get(Reactions::class),
-                self::TEXT_DOMAIN
+                self::TEXT_DOMAIN,
+                $c->get(Counts::class)
             );
         });
 
-        $this->container->set(Asset_Loader::class, function () use ($plugin_file, $plugin_url): Asset_Loader {
-            return new Asset_Loader($plugin_file, $plugin_url, self::VERSION, self::TEXT_DOMAIN, self::SLUG);
+        $this->container->set(Asset_Loader::class, function (Container $c) use ($plugin_file, $plugin_url): Asset_Loader {
+            return new Asset_Loader($plugin_file, $plugin_url, self::VERSION, self::TEXT_DOMAIN, self::SLUG, $c->get(Options::class));
         });
 
         $this->container->set(Admin::class, function (Container $c): Admin {
@@ -101,6 +103,10 @@ class Plugin
 
         $this->container->set(Shortcode::class, function (Container $c): Shortcode {
             return new Shortcode($c->get(Options::class), $c->get(Render::class));
+        });
+
+        $this->container->set(Counts::class, function (Container $c): Counts {
+            return new Counts($c->get(Options::class), $c->get(Networks::class));
         });
     }
 }

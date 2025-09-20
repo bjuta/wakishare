@@ -2,6 +2,580 @@
   var messages = window.yourShareMessages || {};
   var reactionsConfig = window.yourShareReactions || {};
   var reactionStore = null;
+  var mediaConfig = window.yourShareMedia || {};
+
+  var overlaySelectors = Array.isArray(mediaConfig.selectors) ? mediaConfig.selectors : [];
+  overlaySelectors = overlaySelectors.map(function(selector){
+    return (selector || '').trim();
+  }).filter(function(selector){
+    return selector.length > 0;
+  });
+
+  var overlayTemplateHtml = (mediaConfig.markup || '').trim();
+  var overlaySelectorString = overlaySelectors.join(',');
+  var overlayPosition = (mediaConfig.position || 'top-end').toLowerCase();
+  var overlayTrigger = (mediaConfig.trigger || 'hover').toLowerCase();
+  var overlayToggleLabel = mediaConfig.toggleLabel || messages.mediaToggle || 'Share this media';
+  var overlayToggleText = mediaConfig.toggleText || messages.shareLabel || 'Share';
+  var overlayStates = [];
+  var overlayObserver = null;
+  var overlayIdCounter = 0;
+
+  var allowedPositions = ['top-start', 'top-end', 'bottom-start', 'bottom-end', 'center'];
+  if (allowedPositions.indexOf(overlayPosition) === -1){
+    overlayPosition = 'top-end';
+  }
+
+  var allowedTriggers = ['hover', 'always'];
+  if (allowedTriggers.indexOf(overlayTrigger) === -1){
+    overlayTrigger = 'hover';
+  }
+
+  function overlayEnabled(){
+    return overlaySelectors.length > 0 && overlayTemplateHtml.length > 0;
+  }
+
+  function cloneOverlayShare(){
+    if (!overlayTemplateHtml){
+      return null;
+    }
+    var template = document.createElement('template');
+    template.innerHTML = overlayTemplateHtml;
+    var first = template.content.firstElementChild;
+    if (!first){
+      return null;
+    }
+    var clone = first.cloneNode(true);
+    clone.classList.add('waki-share-overlay-share');
+    return clone;
+  }
+
+  function getFocusableElements(container){
+    return Array.prototype.filter.call(container.querySelectorAll('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'), function(el){
+      if (el.hasAttribute('disabled')){
+        return false;
+      }
+      var style = window.getComputedStyle(el);
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    });
+  }
+
+  function trapFocus(event, state){
+    var focusable = getFocusableElements(state.overlay);
+    if (!focusable.length){
+      event.preventDefault();
+      return;
+    }
+
+    var first = focusable[0];
+    var last = focusable[focusable.length - 1];
+    var active = document.activeElement;
+
+    if (event.shiftKey){
+      if (active === first || !state.overlay.contains(active)){
+        event.preventDefault();
+        last.focus();
+      }
+    } else if (active === last){
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function openOverlay(state, focusMenu){
+    if (state.open){
+      return;
+    }
+    state.open = true;
+    state.wrapper.classList.add('is-open');
+    state.overlay.classList.add('is-open');
+    state.menu.setAttribute('aria-hidden', 'false');
+    state.toggle.setAttribute('aria-expanded', 'true');
+
+    if (focusMenu){
+      var focusable = getFocusableElements(state.overlay);
+      for (var i = 0; i < focusable.length; i++){
+        if (focusable[i] !== state.toggle){
+          focusable[i].focus({ preventScroll: true });
+          break;
+        }
+      }
+    }
+  }
+
+  function closeOverlay(state){
+    if (!state.open || overlayTrigger === 'always'){
+      return;
+    }
+    state.open = false;
+    state.wrapper.classList.remove('is-open');
+    state.overlay.classList.remove('is-open');
+    state.menu.setAttribute('aria-hidden', 'true');
+    state.toggle.setAttribute('aria-expanded', 'false');
+  }
+
+  function closeAllOverlays(except){
+    for (var i = 0; i < overlayStates.length; i++){
+      if (overlayStates[i] !== except){
+        closeOverlay(overlayStates[i]);
+      }
+    }
+  }
+
+  function bindOverlayEvents(state){
+    if (overlayTrigger === 'always'){
+      return;
+    }
+
+    var closeTimer = null;
+
+    function scheduleClose(delay){
+      if (overlayTrigger === 'always'){
+        return;
+      }
+      clearTimeout(closeTimer);
+      closeTimer = setTimeout(function(){
+        if (!state.wrapper.contains(document.activeElement)){
+          closeOverlay(state);
+        }
+      }, delay);
+    }
+
+    state.wrapper.addEventListener('mouseenter', function(){
+      if (overlayTrigger !== 'hover'){
+        return;
+      }
+      clearTimeout(closeTimer);
+      closeAllOverlays(state);
+      openOverlay(state, false);
+    });
+
+    state.wrapper.addEventListener('mouseleave', function(){
+      if (overlayTrigger !== 'hover'){
+        return;
+      }
+      scheduleClose(120);
+    });
+
+    state.wrapper.addEventListener('focusin', function(){
+      closeAllOverlays(state);
+      openOverlay(state, false);
+    });
+
+    state.wrapper.addEventListener('focusout', function(event){
+      if (state.wrapper.contains(event.relatedTarget)){
+        return;
+      }
+      if (overlayTrigger === 'hover'){
+        scheduleClose(100);
+      } else {
+        closeOverlay(state);
+      }
+    });
+
+    state.toggle.addEventListener('click', function(event){
+      event.preventDefault();
+      if (state.open){
+        closeOverlay(state);
+      } else {
+        closeAllOverlays(state);
+        openOverlay(state, true);
+      }
+    });
+
+    state.overlay.addEventListener('keydown', function(event){
+      if (event.key === 'Escape' || event.key === 'Esc'){
+        if (state.open && overlayTrigger !== 'always'){
+          event.preventDefault();
+          closeOverlay(state);
+          state.toggle.focus({ preventScroll: true });
+        }
+        return;
+      }
+
+      if (event.key === 'Tab'){
+        if (!state.open && overlayTrigger !== 'always'){
+          return;
+        }
+        trapFocus(event, state);
+      }
+    });
+  }
+
+  function isMediaCandidate(el){
+    if (!el || !el.tagName){
+      return false;
+    }
+    var tag = el.tagName.toLowerCase();
+    if (tag === 'img' || tag === 'video'){
+      return true;
+    }
+    if (tag === 'iframe'){
+      var src = (el.getAttribute('src') || el.getAttribute('data-src') || '').toLowerCase();
+      return /youtube\.com|youtu\.be|youtube-nocookie\.com|player\.vimeo\.com/.test(src);
+    }
+    return false;
+  }
+
+  function findMediaElement(node){
+    if (isMediaCandidate(node)){
+      return node;
+    }
+    var nested = node.querySelectorAll('img, video, iframe');
+    for (var i = 0; i < nested.length; i++){
+      if (isMediaCandidate(nested[i])){
+        return nested[i];
+      }
+    }
+    return null;
+  }
+
+  function promoteTarget(el){
+    var target = el;
+    if (!target){
+      return target;
+    }
+
+    var link = target.closest('a');
+    if (link && link.querySelectorAll('img, video, iframe').length === 1){
+      target = link;
+    }
+
+    return target;
+  }
+
+  function createOverlay(target){
+    if (!target || target.nodeType !== 1){
+      return;
+    }
+    if (target.closest('.waki-share-media') || target.getAttribute('data-your-share-overlay-target') === '1'){
+      return;
+    }
+
+    var parent = target.parentNode;
+    if (!parent){
+      return;
+    }
+
+    var wrapper = document.createElement('span');
+    wrapper.className = 'waki-share-media';
+    wrapper.setAttribute('data-trigger', overlayTrigger);
+    wrapper.setAttribute('data-position', overlayPosition);
+
+    var computed = window.getComputedStyle(target);
+    var display = (computed.display || '').toLowerCase();
+    var blockDisplays = ['block', 'flex', 'grid', 'table', 'list-item'];
+    if (blockDisplays.indexOf(display) !== -1){
+      wrapper.dataset.display = 'block';
+      wrapper.style.display = 'block';
+    } else {
+      wrapper.dataset.display = 'inline';
+      wrapper.style.display = 'inline-block';
+    }
+
+    parent.insertBefore(wrapper, target);
+    wrapper.appendChild(target);
+    wrapper.dataset.yourShareOverlay = '1';
+    target.setAttribute('data-your-share-overlay-target', '1');
+
+    var overlay = document.createElement('div');
+    overlay.className = 'waki-share-overlay';
+    overlay.setAttribute('data-position', overlayPosition);
+
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'waki-share-overlay__toggle';
+    toggle.setAttribute('aria-haspopup', 'true');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', overlayToggleLabel);
+    toggle.textContent = overlayToggleText;
+
+    var menu = document.createElement('div');
+    menu.className = 'waki-share-overlay__menu';
+    menu.setAttribute('aria-hidden', 'true');
+    menu.setAttribute('role', 'menu');
+    menu.setAttribute('tabindex', '-1');
+
+    var shareMarkup = cloneOverlayShare();
+    if (!shareMarkup){
+      wrapper.parentNode.insertBefore(target, wrapper);
+      wrapper.remove();
+      return;
+    }
+
+    menu.appendChild(shareMarkup);
+    overlay.appendChild(toggle);
+    overlay.appendChild(menu);
+    wrapper.appendChild(overlay);
+
+    overlayIdCounter += 1;
+    var menuId = 'yourShareOverlayMenu' + overlayIdCounter;
+    menu.id = menuId;
+    toggle.setAttribute('aria-controls', menuId);
+
+    var state = {
+      wrapper: wrapper,
+      target: target,
+      overlay: overlay,
+      toggle: toggle,
+      menu: menu,
+      open: false
+    };
+
+    overlayStates.push(state);
+
+    if (overlayTrigger === 'always'){
+      state.open = true;
+      wrapper.classList.add('is-open');
+      overlay.classList.add('is-open');
+      menu.setAttribute('aria-hidden', 'false');
+      toggle.setAttribute('aria-expanded', 'true');
+      toggle.setAttribute('aria-hidden', 'true');
+      toggle.setAttribute('tabindex', '-1');
+    } else {
+      bindOverlayEvents(state);
+    }
+  }
+
+  function maybeCreateOverlay(node){
+    if (!(node instanceof Element)){
+      return;
+    }
+    if (!overlaySelectorString || node.closest('.waki-share-media')){
+      return;
+    }
+
+    if (node.matches && node.matches(overlaySelectorString)){
+      var candidate = findMediaElement(node);
+      if (candidate){
+        createOverlay(promoteTarget(candidate));
+      }
+    }
+
+    var matches = node.querySelectorAll(overlaySelectorString);
+    Array.prototype.forEach.call(matches, function(match){
+      var media = findMediaElement(match);
+      if (media){
+        createOverlay(promoteTarget(media));
+      }
+    });
+  }
+
+  function initMediaOverlays(){
+    if (!overlayEnabled()){
+      return;
+    }
+
+    if (document.body){
+      maybeCreateOverlay(document.body);
+    }
+
+    if (typeof MutationObserver === 'undefined' || !document.body){
+      return;
+    }
+
+    overlayObserver = new MutationObserver(function(mutations){
+      mutations.forEach(function(mutation){
+        Array.prototype.forEach.call(mutation.addedNodes, function(node){
+          if (node instanceof Element){
+            maybeCreateOverlay(node);
+          }
+        });
+      });
+    });
+
+    overlayObserver.observe(document.body, { childList: true, subtree: true });
+  }
+  var countsConfig = window.yourShareCountsConfig || {};
+  var refreshTimers = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+
+  function formatCount(value){
+    var num = parseInt(value, 10);
+    if (!isFinite(num) || num < 0){
+      num = 0;
+    }
+
+    if (num >= 1000000){
+      var millions = (num / 1000000).toFixed(1);
+      if (millions.slice(-2) === '.0'){
+        millions = millions.slice(0, -2);
+      }
+      return millions + 'M';
+    }
+
+    if (num >= 1000){
+      var thousands = (num / 1000).toFixed(1);
+      if (thousands.slice(-2) === '.0'){
+        thousands = thousands.slice(0, -2);
+      }
+      return thousands + 'K';
+    }
+
+    if (typeof num.toLocaleString === 'function'){
+      return num.toLocaleString();
+    }
+
+    return String(num);
+  }
+
+  function applyCounts(wrapper, payload){
+    if (!payload || typeof payload !== 'object'){
+      return;
+    }
+
+    var networks = payload.networks || {};
+    Object.keys(networks).forEach(function(key){
+      var networkData = networks[key] || {};
+      var total = parseInt(networkData.total, 10);
+      if (!isFinite(total) || total < 0){
+        total = 0;
+      }
+
+      var button = wrapper.querySelector('.waki-btn[data-net="' + key + '"]');
+      if (!button){
+        return;
+      }
+
+      var badge = button.querySelector('[data-your-share-count]');
+      if (!badge){
+        return;
+      }
+
+      badge.textContent = formatCount(total);
+      badge.setAttribute('data-value', total);
+    });
+
+    var totalValue = wrapper.querySelector('[data-your-share-total-value]');
+    if (totalValue){
+      var totalCount = parseInt(payload.total, 10);
+      if (!isFinite(totalCount) || totalCount < 0){
+        totalCount = 0;
+      }
+      totalValue.textContent = formatCount(totalCount);
+      totalValue.setAttribute('data-value', totalCount);
+    }
+  }
+
+  function buildCountsUrl(wrapper, force){
+    if (!countsConfig.restUrl){
+      return '';
+    }
+
+    var base = countsConfig.restUrl.replace(/\/$/, '');
+    var postId = wrapper.getAttribute('data-your-share-post');
+    if (postId === null){
+      return '';
+    }
+
+    var url = base + '/' + encodeURIComponent(postId || '0');
+    var params = [];
+    var networks = wrapper.getAttribute('data-your-share-networks') || '';
+    if (networks){
+      params.push('networks=' + encodeURIComponent(networks));
+    }
+    var shareUrl = wrapper.getAttribute('data-your-share-count-url') || '';
+    if (shareUrl){
+      params.push('shareUrl=' + encodeURIComponent(shareUrl));
+    }
+    if (force){
+      params.push('force=1');
+    }
+
+    if (params.length){
+      url += '?' + params.join('&');
+    }
+
+    return url;
+  }
+
+  function scheduleRefresh(wrapper){
+    if (!refreshTimers){
+      return;
+    }
+
+    var interval = parseInt(countsConfig.refreshInterval, 10);
+    if (!isFinite(interval) || interval <= 0){
+      return;
+    }
+
+    if (refreshTimers.has(wrapper)){
+      clearTimeout(refreshTimers.get(wrapper));
+    }
+
+    var timer = setTimeout(function(){
+      fetchCounts(wrapper, true);
+    }, interval * 60 * 1000);
+
+    refreshTimers.set(wrapper, timer);
+  }
+
+  function fetchCounts(wrapper, force){
+    if (!countsConfig || !countsConfig.enabled){
+      return;
+    }
+
+    if (!wrapper || wrapper.getAttribute('data-your-share-counts') !== '1'){
+      return;
+    }
+
+    var url = buildCountsUrl(wrapper, force);
+    if (!url){
+      return;
+    }
+
+    var options = { credentials: 'same-origin' };
+    if (countsConfig.nonce){
+      options.headers = { 'X-WP-Nonce': countsConfig.nonce };
+    }
+
+    fetch(url, options)
+      .then(function(response){
+        if (!response.ok){
+          throw new Error('Request failed');
+        }
+        return response.json();
+      })
+      .then(function(data){
+        applyCounts(wrapper, data);
+        scheduleRefresh(wrapper);
+      })
+      .catch(function(){});
+  }
+
+  function hydrateCounts(){
+    if (!countsConfig || !countsConfig.enabled){
+      return;
+    }
+
+    var wrappers = document.querySelectorAll('.waki-share[data-your-share-counts="1"]');
+    Array.prototype.forEach.call(wrappers, function(wrapper){
+      fetchCounts(wrapper, false);
+    });
+  }
+
+  function refreshCounts(target, force){
+    var elements = [];
+    if (!target){
+      elements = document.querySelectorAll('.waki-share[data-your-share-counts="1"]');
+    } else if (typeof target === 'string'){
+      elements = document.querySelectorAll(target);
+    } else if (target instanceof Element){
+      elements = [target];
+    } else if (typeof target.length === 'number'){
+      elements = target;
+    }
+
+    Array.prototype.forEach.call(elements, function(wrapper){
+      if (wrapper && wrapper.getAttribute && wrapper.getAttribute('data-your-share-counts') === '1'){
+        fetchCounts(wrapper, !!force);
+      }
+    });
+  }
+
+  window.yourShareCounts = window.yourShareCounts || {};
+  window.yourShareCounts.refresh = function(target, force){
+    refreshCounts(target, force);
+  };
 
   function openPopup(url){
     var w = 600;
@@ -435,9 +1009,30 @@
   }
 
   document.addEventListener('click', function(event){
+    if (overlayStates.length){
+      overlayStates.forEach(function(state){
+        if (state.open && overlayTrigger !== 'always' && !state.wrapper.contains(event.target)){
+          closeOverlay(state);
+        }
+      });
+    }
+
     var button = event.target.closest('.waki-btn');
-    if (!button || !button.closest('.waki-share')) {
+    if (!button){
       return;
+    }
+
+    var wrapper = button.closest('.waki-share');
+    if (!wrapper){
+      return;
+    }
+
+    if (wrapper.classList.contains('waki-follow')){
+      return;
+    }
+
+    if (button.closest('.waki-share-overlay')){
+      closeAllOverlays(null);
     }
 
     var network = button.getAttribute('data-net');
@@ -473,6 +1068,8 @@
     hydrateGeo();
     updateFloatingVisibility();
     initReactions();
+    initMediaOverlays();
+    hydrateCounts();
   }
 
   if (document.readyState === 'loading'){
@@ -480,4 +1077,10 @@
   } else {
     onReady();
   }
+
+  document.addEventListener('yourShareRefreshCounts', function(event){
+    var detail = event && event.detail ? event.detail : {};
+    var target = detail.target || detail.selector || (event.target && event.target.classList && event.target.classList.contains('waki-share') ? event.target : null);
+    refreshCounts(target, !!detail.force);
+  });
 })();

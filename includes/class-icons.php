@@ -40,6 +40,10 @@ class Icons
             'email'    => 'email',
             'copy'     => 'copy',
             'native'   => 'native',
+            'instagram'     => 'instagram',
+            'tiktok'        => 'tiktok',
+            'youtube'       => 'youtube',
+            'facebook-page' => 'facebook',
         ];
 
         if (!isset($map[$network])) {
