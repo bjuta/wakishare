@@ -145,7 +145,16 @@
 
   document.addEventListener('click', function(event){
     var button = event.target.closest('.waki-btn');
-    if (!button || !button.closest('.waki-share')) {
+    if (!button){
+      return;
+    }
+
+    var wrapper = button.closest('.waki-share');
+    if (!wrapper){
+      return;
+    }
+
+    if (wrapper.classList.contains('waki-follow')){
       return;
     }
 

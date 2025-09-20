@@ -32,6 +32,15 @@ class Options
             'share_gap'                 => 8,
             'share_radius'              => 9999,
             'share_networks_default'    => ['facebook', 'x', 'whatsapp', 'telegram', 'linkedin', 'reddit', 'email', 'copy'],
+            'follow_networks'           => ['x', 'instagram', 'facebook-page', 'tiktok', 'youtube', 'linkedin'],
+            'follow_profiles'           => [
+                'x'             => '',
+                'instagram'     => '',
+                'facebook-page' => '',
+                'tiktok'        => '',
+                'youtube'       => '',
+                'linkedin'      => '',
+            ],
             'sticky_enabled'            => 0,
             'sticky_position'           => 'left',
             'sticky_breakpoint'         => 1024,
@@ -83,7 +92,8 @@ class Options
             $stored = [];
         }
 
-        $options = wp_parse_args($stored, $this->defaults());
+        $defaults = $this->defaults();
+        $options  = wp_parse_args($stored, $defaults);
 
         $options['share_networks_default'] = $this->normalize_networks($options['share_networks_default']);
         $options['networks']               = implode(',', $options['share_networks_default']);
@@ -97,6 +107,8 @@ class Options
         $options['floating_breakpoint']    = $options['sticky_breakpoint'];
         $options['gap']                    = (string) $options['share_gap'];
         $options['radius']                 = (string) $options['share_radius'];
+        $options['follow_networks']        = $this->normalize_follow_networks($options['follow_networks'], $defaults['follow_networks']);
+        $options['follow_profiles']        = $this->normalize_follow_profiles($options['follow_profiles'], $defaults['follow_profiles']);
 
         return $options;
     }
@@ -131,6 +143,9 @@ class Options
 
         $output['share_gap']    = max(0, intval($input['share_gap'] ?? $defaults['share_gap']));
         $output['share_radius'] = max(0, intval($input['share_radius'] ?? $defaults['share_radius']));
+
+        $output['follow_networks'] = $this->normalize_follow_networks($input['follow_networks'] ?? $defaults['follow_networks'], $defaults['follow_networks']);
+        $output['follow_profiles'] = $this->normalize_follow_profiles($input['follow_profiles'] ?? [], $defaults['follow_profiles']);
 
         $output['sticky_enabled']     = !empty($input['sticky_enabled']) ? 1 : 0;
         $output['sticky_position']    = in_array($input['sticky_position'] ?? '', ['left', 'right'], true)
@@ -202,6 +217,53 @@ class Options
         }, $value));
 
         return array_values(array_unique($value));
+    }
+
+    private function normalize_follow_networks($value, array $allowed): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
+            $value = [];
+        }
+
+        $value = array_filter(array_map(static function ($item) {
+            return sanitize_key((string) $item);
+        }, $value));
+
+        $value = array_values(array_intersect($value, $allowed));
+
+        foreach ($allowed as $slug) {
+            if (!in_array($slug, $value, true)) {
+                $value[] = $slug;
+            }
+        }
+
+        return $value;
+    }
+
+    private function normalize_follow_profiles($value, array $defaults): array
+    {
+        if (!is_array($value)) {
+            $value = [];
+        }
+
+        $profiles = [];
+
+        foreach ($defaults as $slug => $default_url) {
+            $url = '';
+
+            if (isset($value[$slug])) {
+                $candidate = trim((string) $value[$slug]);
+                $url       = $candidate !== '' ? esc_url_raw($candidate) : '';
+            }
+
+            $profiles[$slug] = $url;
+        }
+
+        return $profiles;
     }
 
     /**

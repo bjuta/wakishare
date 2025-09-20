@@ -147,6 +147,103 @@ class Render
         return trim((string) ob_get_clean());
     }
 
+    public function render_follow(array $atts): string
+    {
+        $options  = $this->options->all();
+        $defaults = $this->options->defaults();
+        $map      = $this->networks->follow();
+        $allowed  = array_keys($map);
+
+        $networks = $this->prepare_networks($atts['networks'] ?? '', $allowed);
+
+        if (empty($networks)) {
+            $networks = $this->prepare_networks($options['follow_networks'] ?? [], $allowed);
+        }
+
+        $profiles = $options['follow_profiles'] ?? [];
+
+        $style  = $atts['style'] ?? ($options['share_style'] ?? 'solid');
+        $size   = $atts['size'] ?? ($options['share_size'] ?? 'md');
+        $align  = $atts['align'] ?? ($options['share_align'] ?? 'left');
+        $labels = $atts['labels'] ?? 'show';
+        $brand  = isset($atts['brand']) ? (string) $atts['brand'] : ($options['share_brand_colors'] ? '1' : '0');
+
+        $gap    = absint($options['share_gap'] ?? $defaults['share_gap']);
+        $radius = absint($options['share_radius'] ?? $defaults['share_radius']);
+
+        if ($gap <= 0) {
+            $gap = absint($defaults['share_gap']);
+        }
+
+        if ($radius <= 0) {
+            $radius = absint($defaults['share_radius']);
+        }
+
+        $classes = [
+            'waki-share',
+            'waki-follow',
+            'waki-share-inline',
+            'waki-size-' . sanitize_html_class($size),
+            'waki-style-' . sanitize_html_class($style),
+            'waki-labels-' . sanitize_html_class($labels),
+            'align-' . sanitize_html_class($align),
+            $brand === '1' ? 'is-brand' : 'is-mono',
+        ];
+
+        $style_inline = sprintf('--waki-gap:%dpx;--waki-radius:%dpx;', $gap, $radius);
+
+        $has_links = false;
+
+        ob_start();
+        ?>
+        <div class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr($style_inline); ?>">
+            <?php foreach ($networks as $network) :
+                if (!isset($map[$network])) {
+                    continue;
+                }
+
+                $profile = $profiles[$network] ?? '';
+
+                if ($profile === '') {
+                    continue;
+                }
+
+                [$label] = $map[$network];
+                $href     = esc_url($profile);
+
+                if ($href === '') {
+                    continue;
+                }
+
+                $has_links = true;
+
+                $attr = [
+                    'class'      => 'waki-btn',
+                    'data-net'   => $network,
+                    'href'       => $href,
+                    'target'     => '_blank',
+                    'rel'        => 'me noopener',
+                    'aria-label' => sprintf(__('Follow on %s', $this->text_domain), $label),
+                ];
+
+                $attr = apply_filters('your_share_follow_attributes', $attr, $network, $atts, $options);
+                ?>
+                <a <?php foreach ($attr as $key => $value) { echo esc_attr($key) . '="' . esc_attr($value) . '" '; } ?>>
+                    <?php echo $this->icons->svg($network); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    <span class="waki-label"><?php echo esc_html($label); ?></span>
+                </a>
+            <?php endforeach; ?>
+        </div>
+        <?php
+        $html = trim((string) ob_get_clean());
+
+        if (!$has_links) {
+            return '';
+        }
+
+        return $html;
+    }
+
     private function current_share_context(array $atts): array
     {
         $post  = get_post();
