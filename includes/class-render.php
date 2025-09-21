@@ -32,6 +32,9 @@ class Render
     /** @var bool */
     private $media_config_localized = false;
 
+    /** @var bool */
+    private $metadata_output = false;
+
     public function __construct(
         Options $options,
         Networks $networks,
@@ -48,6 +51,7 @@ class Render
         $this->reactions   = $reactions;
         $this->text_domain = $text_domain;
         add_action('wp_enqueue_scripts', [$this, 'register_media_overlays'], 20);
+        add_action('wp_head', [$this, 'output_share_metadata']);
         $this->counts      = $counts;
     }
 
@@ -147,6 +151,13 @@ class Render
         }
 
         $max_visible     = $visible_limit;
+        $inline_reactions_markup = '';
+
+        if ($placement === 'inline') {
+            $inline_reactions_markup = $this->reactions->render_inline($post_id);
+        }
+
+        $max_visible     = 5;
         $visible_buttons = [];
         $hidden_buttons  = [];
         $button_index    = 0;
@@ -228,33 +239,39 @@ class Render
             'data-your-share-networks'       => $counts_state['network_list'],
             'data-your-share-count-url'      => $counts_state['url'],
             'data-your-share-count-ttl'      => $counts_state['ttl'],
+            'data-your-share-title'          => $title,
+            'data-your-share-url'            => $base,
+            'data-your-share-snippet'        => $share_ctx['excerpt'],
+            'data-your-share-image'          => $share_ctx['image'],
         ]); ?>
         <div class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr($style_inline); ?>"<?php echo $data_attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-            <?php if ($counts_state['enabled'] && !empty($opts['counts_show_total'])) : ?>
-                <div class="waki-share-total" data-your-share-total>
-                    <span class="waki-total-label"><?php esc_html_e('Shares', $this->text_domain); ?></span>
-                    <span class="waki-total-value" data-your-share-total-value data-value="<?php echo esc_attr((string) $counts_state['total']); ?>"><?php echo esc_html($this->format_count($counts_state['total'])); ?></span>
-                </div>
-            <?php endif; ?>
-            <div class="waki-share-buttons" data-your-share-buttons>
-                <?php foreach ($visible_buttons as $button_markup) :
-                    echo $button_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                endforeach; ?>
-                <?php if (!empty($hidden_buttons)) : ?>
-                    <button
-                        type="button"
-                        class="waki-btn waki-btn--toggle"
-                        data-net="more"
-                        data-share-toggle="more"
-                        aria-expanded="false"
-                        aria-label="<?php esc_attr_e('More share options', $this->text_domain); ?>"
-                        <?php if ($more_id !== '') : ?>aria-controls="<?php echo esc_attr($more_id); ?>"<?php endif; ?>
-                    >
-                        <span class="waki-icon" aria-hidden="true">
-                            <?php echo $this->icons->svg('share-toggle'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        </span>
-                    </button>
+            <div class="waki-share-row">
+                <?php if ($counts_state['enabled'] && !empty($opts['counts_show_total'])) : ?>
+                    <div class="waki-share-total" data-your-share-total>
+                        <span class="waki-total-label"><?php esc_html_e('Shares', $this->text_domain); ?></span>
+                        <span class="waki-total-value" data-your-share-total-value data-value="<?php echo esc_attr((string) $counts_state['total']); ?>"><?php echo esc_html($this->format_count($counts_state['total'])); ?></span>
+                    </div>
                 <?php endif; ?>
+                <div class="waki-share-buttons" data-your-share-buttons>
+                    <?php foreach ($visible_buttons as $button_markup) :
+                        echo $button_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    endforeach; ?>
+                    <?php if (!empty($hidden_buttons)) : ?>
+                        <button
+                            type="button"
+                            class="waki-btn waki-btn--toggle"
+                            data-net="more"
+                            data-share-toggle="more"
+                            aria-expanded="false"
+                            aria-label="<?php esc_attr_e('More share options', $this->text_domain); ?>"
+                            <?php if ($more_id !== '') : ?>aria-controls="<?php echo esc_attr($more_id); ?>"<?php endif; ?>
+                        >
+                            <span class="waki-icon" aria-hidden="true">
+                                <?php echo $this->icons->svg('share-toggle'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                            </span>
+                        </button>
+                    <?php endif; ?>
+                </div>
             </div>
             <?php if (!empty($hidden_buttons)) : ?>
                 <div class="waki-share-extra" data-your-share-extra<?php echo $more_id !== '' ? ' id="' . esc_attr($more_id) . '"' : ''; ?> hidden aria-hidden="true">
@@ -263,18 +280,13 @@ class Render
                     endforeach; ?>
                 </div>
             <?php endif; ?>
+            <?php if ($inline_reactions_markup !== '') : ?>
+                <div class="waki-share-react-field" data-your-share-react>
+                    <span class="waki-share-react-label"><?php esc_html_e('React', $this->text_domain); ?></span>
+                    <?php echo $inline_reactions_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                </div>
+            <?php endif; ?>
         </div>
-        <?php
-        if ($placement === 'inline') {
-            $post_id = 0;
-
-            if (isset($share_ctx['post']) && $share_ctx['post'] instanceof \WP_Post) {
-                $post_id = (int) $share_ctx['post']->ID;
-            }
-
-            echo $this->reactions->render_inline($post_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-        }
-        ?>
         <?php
         return trim((string) ob_get_clean());
     }
@@ -753,6 +765,108 @@ class Render
         return $default;
     }
 
+    public function output_share_metadata(): void
+    {
+        if ($this->metadata_output || is_admin()) {
+            return;
+        }
+
+        $context = $this->current_share_context([]);
+
+        $title   = $context['title'];
+        $url     = $context['url'];
+        $excerpt = $context['excerpt'];
+        $image   = $context['image'];
+        $post    = $context['post'];
+
+        if ($title === '' && $url === '') {
+            return;
+        }
+
+        $site_name = get_bloginfo('name', 'display');
+        $type      = $post instanceof \WP_Post ? 'article' : 'website';
+        $card      = $image !== '' ? 'summary_large_image' : 'summary';
+
+        $metadata = [
+            [
+                'property' => 'og:type',
+                'content'  => $type,
+            ],
+            [
+                'property' => 'og:title',
+                'content'  => $title,
+            ],
+            [
+                'property' => 'og:description',
+                'content'  => $excerpt,
+            ],
+            [
+                'property' => 'og:url',
+                'content'  => $url,
+            ],
+            [
+                'property' => 'og:site_name',
+                'content'  => $site_name,
+            ],
+            [
+                'property' => 'og:image',
+                'content'  => $image,
+            ],
+            [
+                'name'    => 'twitter:card',
+                'content' => $card,
+            ],
+            [
+                'name'    => 'twitter:title',
+                'content' => $title,
+            ],
+            [
+                'name'    => 'twitter:description',
+                'content' => $excerpt,
+            ],
+            [
+                'name'    => 'twitter:image',
+                'content' => $image,
+            ],
+            [
+                'name'    => 'twitter:url',
+                'content' => $url,
+            ],
+        ];
+
+        $metadata = array_filter($metadata, static function ($tag) {
+            return !empty($tag['content']);
+        });
+
+        $metadata = apply_filters('your_share_metadata', $metadata, $context);
+
+        if (empty($metadata)) {
+            return;
+        }
+
+        $this->metadata_output = true;
+
+        echo "\n<!-- Your Share metadata -->\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+
+        foreach ($metadata as $tag) {
+            $attr_name = isset($tag['property']) ? 'property' : 'name';
+            $attr_key  = $tag[$attr_name] ?? '';
+
+            if ($attr_key === '') {
+                continue;
+            }
+
+            printf(
+                '<meta %1$s="%2$s" content="%3$s" />' . "\n",
+                esc_attr($attr_name),
+                esc_attr($attr_key),
+                esc_attr($tag['content'])
+            );
+        }
+
+        echo "<!-- /Your Share metadata -->\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    }
+
     private function current_share_context(array $atts): array
     {
         $post  = get_post();
@@ -772,10 +886,44 @@ class Render
             $url = home_url('/');
         }
 
+        $excerpt = '';
+        $image   = '';
+
+        if ($post instanceof \WP_Post) {
+            if (has_excerpt($post)) {
+                $excerpt = $post->post_excerpt;
+            } else {
+                $content = strip_shortcodes((string) $post->post_content);
+                $excerpt = wp_trim_words($content, 40, '…');
+            }
+
+            $thumbnail_id = get_post_thumbnail_id($post);
+            if ($thumbnail_id) {
+                $image = wp_get_attachment_image_url($thumbnail_id, 'full') ?: '';
+            }
+        }
+
+        if ($excerpt === '') {
+            $excerpt = get_bloginfo('description', 'display');
+        }
+
+        $excerpt = wp_strip_all_tags((string) $excerpt);
+        $excerpt = trim(preg_replace('/\s+/', ' ', $excerpt));
+
+        if ($excerpt !== '') {
+            $excerpt = wp_html_excerpt($excerpt, 280, '…');
+        }
+
+        if ($image === '') {
+            $image = get_site_icon_url(512);
+        }
+
         return [
             'post'  => $post,
             'title' => wp_strip_all_tags($title),
             'url'   => $url,
+            'excerpt' => $excerpt,
+            'image'   => $image,
         ];
     }
 
