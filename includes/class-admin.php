@@ -44,6 +44,7 @@ class Admin
         add_action('admin_menu', [$this, 'register_menu']);
         add_action('admin_init', [$this, 'register_settings']);
         add_filter('redirect_post_location', [$this, 'preserve_tab'], 10, 2);
+        add_action('load-settings_page_' . $this->slug, [$this, 'register_help_tabs']);
     }
 
     public function register_menu(): void
@@ -164,6 +165,52 @@ class Admin
             </form>
         </div>
         <?php
+    }
+
+    public function register_help_tabs(): void
+    {
+        $screen = get_current_screen();
+
+        if (!$screen) {
+            return;
+        }
+
+        $screen->add_help_tab([
+            'id'      => 'your-share-shortcodes',
+            'title'   => __('Blocks & shortcodes', $this->text_domain),
+            'content' => $this->help_tab_markup(),
+        ]);
+
+        $sidebar  = '<p><strong>' . esc_html__('Quick reference', $this->text_domain) . '</strong></p>';
+        $sidebar .= '<p><code>[your_share]</code> &mdash; ' . esc_html__('Inline share buttons.', $this->text_domain) . '</p>';
+        $sidebar .= '<p><code>[share_suite]</code> &mdash; ' . esc_html__('Composite share suite.', $this->text_domain) . '</p>';
+        $sidebar .= '<p><code>[share_follow]</code> &mdash; ' . esc_html__('Profile follow buttons.', $this->text_domain) . '</p>';
+        $sidebar .= '<p><code>[share_reactions]</code> &mdash; ' . esc_html__('Emoji reactions.', $this->text_domain) . '</p>';
+
+        $screen->set_help_sidebar($sidebar);
+    }
+
+    private function help_tab_markup(): string
+    {
+        ob_start();
+        ?>
+        <p><?php esc_html_e('Use the blocks or shortcodes below to embed sharing interfaces anywhere on your site.', $this->text_domain); ?></p>
+        <ul>
+            <li><strong><?php esc_html_e('Share Suite block', $this->text_domain); ?></strong> &mdash; <?php esc_html_e('Combine share buttons, follow links, reactions, and the floating toggle.', $this->text_domain); ?></li>
+            <li><strong><?php esc_html_e('Sticky Share Toggle block', $this->text_domain); ?></strong> &mdash; <?php esc_html_e('Outputs the floating share bar with per-page controls.', $this->text_domain); ?></li>
+            <li><strong><?php esc_html_e('Follow Buttons block', $this->text_domain); ?></strong> &mdash; <?php esc_html_e('Uses the profile URLs saved on the Follow tab.', $this->text_domain); ?></li>
+            <li><strong><?php esc_html_e('Reactions block', $this->text_domain); ?></strong> &mdash; <?php esc_html_e('Adds the emoji reaction bar inline or as a sticky widget.', $this->text_domain); ?></li>
+            <li><strong><?php esc_html_e('Share Overlay block', $this->text_domain); ?></strong> &mdash; <?php esc_html_e('Wrap media that should display a share overlay.', $this->text_domain); ?></li>
+        </ul>
+        <p><?php esc_html_e('Shortcodes mirror the block functionality and can be added to classic editor content:', $this->text_domain); ?></p>
+        <ul>
+            <li><code>[your_share]</code> &mdash; <?php esc_html_e('Inline share buttons.', $this->text_domain); ?></li>
+            <li><code>[share_suite]</code> &mdash; <?php esc_html_e('Composite suite with optional follow and reactions.', $this->text_domain); ?></li>
+            <li><code>[share_follow]</code> &mdash; <?php esc_html_e('Follow buttons linked to your profiles.', $this->text_domain); ?></li>
+            <li><code>[share_reactions]</code> &mdash; <?php esc_html_e('Emoji reactions bar.', $this->text_domain); ?></li>
+        </ul>
+        <?php
+        return (string) ob_get_clean();
     }
 
     public function preserve_tab(string $location, int $status): string

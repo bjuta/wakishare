@@ -1,0 +1,62 @@
+{
+    "apiVersion": 3,
+    "name": "your-share/sticky-toggle",
+    "title": "Sticky Share Toggle",
+    "category": "widgets",
+    "icon": "admin-links",
+    "description": "Display a floating share bar with configurable networks and positioning.",
+    "keywords": [
+        "share",
+        "floating",
+        "sticky"
+    ],
+    "attributes": {
+        "networks": {
+            "type": "string",
+            "default": ""
+        },
+        "labels": {
+            "type": "string",
+            "default": "hide"
+        },
+        "style": {
+            "type": "string",
+            "default": ""
+        },
+        "size": {
+            "type": "string",
+            "default": "sm"
+        },
+        "brand": {
+            "type": "boolean",
+            "default": true
+        },
+        "utmCampaign": {
+            "type": "string",
+            "default": ""
+        },
+        "shareUrl": {
+            "type": "string",
+            "default": ""
+        },
+        "shareTitle": {
+            "type": "string",
+            "default": ""
+        },
+        "stickyPosition": {
+            "type": "string",
+            "default": ""
+        },
+        "stickyBreakpoint": {
+            "type": "number",
+            "default": 1024
+        }
+    },
+    "supports": {
+        "html": false
+    },
+    "editorScript": "file:../index.js",
+    "style": "your-share",
+    "editorStyle": "your-share",
+    "viewScript": "your-share"
+}

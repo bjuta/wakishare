@@ -38,6 +38,7 @@ class Plugin
         $this->container->get(Rest::class)->register_hooks();
         $this->container->get(Analytics::class)->register_hooks();
         $this->container->get(Shortcode::class)->register_hooks();
+        $this->container->get(Blocks::class)->register_hooks();
 
         do_action('your_share_plugin_booted', $this);
     }
@@ -115,6 +116,13 @@ class Plugin
 
         $this->container->set(Shortcode::class, function (Container $c): Shortcode {
             return new Shortcode($c->get(Options::class), $c->get(Render::class));
+        });
+
+        $this->container->set(Blocks::class, function (Container $c) use ($plugin_file): Blocks {
+            return new Blocks(
+                $plugin_file,
+                $c->get(Render::class)
+            );
         });
 
         $this->container->set(Counts::class, function (Container $c): Counts {

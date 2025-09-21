@@ -1,0 +1,106 @@
+{
+    "apiVersion": 3,
+    "name": "your-share/share-suite",
+    "title": "Share Suite",
+    "category": "widgets",
+    "icon": "share",
+    "description": "Combine share buttons with optional follow links, reactions, and a floating toggle.",
+    "keywords": [
+        "share",
+        "social",
+        "follow"
+    ],
+    "attributes": {
+        "networks": {
+            "type": "string",
+            "default": ""
+        },
+        "labels": {
+            "type": "string",
+            "default": ""
+        },
+        "style": {
+            "type": "string",
+            "default": ""
+        },
+        "size": {
+            "type": "string",
+            "default": ""
+        },
+        "align": {
+            "type": "string",
+            "default": ""
+        },
+        "brand": {
+            "type": "boolean",
+            "default": true
+        },
+        "utmCampaign": {
+            "type": "string",
+            "default": ""
+        },
+        "shareUrl": {
+            "type": "string",
+            "default": ""
+        },
+        "shareTitle": {
+            "type": "string",
+            "default": ""
+        },
+        "showShare": {
+            "type": "boolean",
+            "default": true
+        },
+        "showFollow": {
+            "type": "boolean",
+            "default": false
+        },
+        "showReactions": {
+            "type": "boolean",
+            "default": false
+        },
+        "stickyToggle": {
+            "type": "boolean",
+            "default": false
+        },
+        "stickyLabels": {
+            "type": "string",
+            "default": "hide"
+        },
+        "stickyPosition": {
+            "type": "string",
+            "default": ""
+        },
+        "stickyBreakpoint": {
+            "type": "number",
+            "default": 1024
+        },
+        "followNetworks": {
+            "type": "string",
+            "default": ""
+        },
+        "followLabels": {
+            "type": "string",
+            "default": ""
+        },
+        "followAlign": {
+            "type": "string",
+            "default": ""
+        },
+        "reactionsPlacement": {
+            "type": "string",
+            "default": "inline"
+        }
+    },
+    "supports": {
+        "html": false,
+        "align": [
+            "wide",
+            "full"
+        ]
+    },
+    "editorScript": "file:../index.js",
+    "style": "your-share",
+    "editorStyle": "your-share",
+    "viewScript": "your-share"
+}
