@@ -115,6 +115,7 @@ class Admin
 
         $tabs        = $this->tabs();
         $current_tab = $this->current_tab();
+        $referer_base = add_query_arg('page', $this->slug, admin_url('options-general.php'));
 
         ?>
         <div class="wrap your-share-settings" data-your-share-admin>
@@ -171,9 +172,6 @@ class Admin
                         </div>
                     <?php endforeach; ?>
                 </div>
-                <?php
-                $referer_base = add_query_arg('page', $this->slug, admin_url('options-general.php'));
-                ?>
                 <?php submit_button(__('Save settings', $this->text_domain)); ?>
             </form>
         </div>
