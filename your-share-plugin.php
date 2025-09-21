@@ -14,6 +14,7 @@ if (!defined('ABSPATH')) {
 
 require_once __DIR__ . '/includes/activator.php';
 require_once __DIR__ . '/includes/class-container.php';
+require_once __DIR__ . '/includes/class-emoji-library.php';
 require_once __DIR__ . '/includes/class-plugin.php';
 require_once __DIR__ . '/includes/class-options.php';
 require_once __DIR__ . '/includes/class-networks.php';

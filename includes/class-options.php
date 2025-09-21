@@ -248,30 +248,51 @@ class Options
 
     private function default_reaction_toggles(): array
     {
-        return [
-            'like'       => 1,
-            'love'       => 1,
-            'celebrate'  => 1,
-            'insightful' => 1,
-            'support'    => 1,
-        ];
+        $defaults = [];
+
+        foreach (Emoji_Library::defaults() as $slug) {
+            $slug = sanitize_key((string) $slug);
+
+            if ($slug === '') {
+                continue;
+            }
+
+            $defaults[$slug] = 1;
+        }
+
+        if (empty($defaults)) {
+            $library = Emoji_Library::all();
+            $first   = array_key_first($library);
+
+            if ($first !== null) {
+                $defaults[$first] = 1;
+            }
+        }
+
+        return $defaults;
     }
 
     private function normalize_reaction_toggles($value, bool $fallback_to_defaults): array
     {
-        if (!is_array($value)) {
-            $value = [];
+        $enabled = Emoji_Library::sanitize_slugs($value);
+
+        if (empty($enabled) && $fallback_to_defaults) {
+            $enabled = Emoji_Library::defaults();
         }
 
-        $defaults = $this->default_reaction_toggles();
+        if (empty($enabled)) {
+            $library = Emoji_Library::all();
+            $first   = array_key_first($library);
+
+            if ($first !== null) {
+                $enabled = [$first];
+            }
+        }
+
         $normalized = [];
 
-        foreach ($defaults as $slug => $enabled) {
-            if (array_key_exists($slug, $value)) {
-                $normalized[$slug] = !empty($value[$slug]) ? 1 : 0;
-            } else {
-                $normalized[$slug] = $fallback_to_defaults ? (int) $enabled : 0;
-            }
+        foreach ($enabled as $slug) {
+            $normalized[$slug] = 1;
         }
 
         return $normalized;

@@ -49,28 +49,7 @@ class Reactions
 
     public function emojis(): array
     {
-        return [
-            'like' => [
-                'emoji' => '👍',
-                'label' => __('Like', $this->text_domain),
-            ],
-            'love' => [
-                'emoji' => '❤️',
-                'label' => __('Love', $this->text_domain),
-            ],
-            'celebrate' => [
-                'emoji' => '🎉',
-                'label' => __('Celebrate', $this->text_domain),
-            ],
-            'insightful' => [
-                'emoji' => '🤔',
-                'label' => __('Insightful', $this->text_domain),
-            ],
-            'support' => [
-                'emoji' => '🙌',
-                'label' => __('Support', $this->text_domain),
-            ],
-        ];
+        return Emoji_Library::all();
     }
 
     public function active_emojis(): array
@@ -79,9 +58,27 @@ class Reactions
         $library = $this->emojis();
         $active  = [];
 
-        foreach ($library as $slug => $data) {
-            if (!empty($enabled[$slug])) {
-                $active[$slug] = $data;
+        if (!is_array($enabled)) {
+            $enabled = [];
+        }
+
+        foreach ($enabled as $slug => $flag) {
+            $slug = sanitize_key((string) $slug);
+
+            if ($slug === '' || empty($flag)) {
+                continue;
+            }
+
+            if (isset($library[$slug])) {
+                $active[$slug] = $library[$slug];
+            }
+        }
+
+        if (empty($active)) {
+            foreach (Emoji_Library::defaults() as $slug) {
+                if (isset($library[$slug])) {
+                    $active[$slug] = $library[$slug];
+                }
             }
         }
 
@@ -110,11 +107,19 @@ class Reactions
 
     public function is_valid_slug(string $slug): bool
     {
-        return isset($this->emojis()[$slug]);
+        $slug = sanitize_key($slug);
+
+        return $slug !== '' && isset($this->emojis()[$slug]);
     }
 
     public function is_active_slug(string $slug): bool
     {
+        $slug = sanitize_key($slug);
+
+        if ($slug === '') {
+            return false;
+        }
+
         $active = $this->active_emojis();
 
         return isset($active[$slug]);
@@ -178,6 +183,39 @@ class Reactions
                     $reaction,
                     $now,
                     $now
+                )
+            );
+        }
+
+        return $this->get_counts($post_id);
+    }
+
+    public function decrement(int $post_id, string $reaction): array
+    {
+        if ($post_id <= 0 || !$this->is_active_slug($reaction)) {
+            return $this->get_counts($post_id);
+        }
+
+        global $wpdb;
+
+        if ($wpdb instanceof wpdb) {
+            $table = $this->table_name($wpdb);
+            $now   = current_time('mysql');
+
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$table} SET total = CASE WHEN total > 0 THEN total - 1 ELSE 0 END, updated_at = %s WHERE post_id = %d AND reaction = %s",
+                    $now,
+                    $post_id,
+                    $reaction
+                )
+            );
+
+            $wpdb->query(
+                $wpdb->prepare(
+                    "DELETE FROM {$table} WHERE post_id = %d AND reaction = %s AND total <= 0",
+                    $post_id,
+                    $reaction
                 )
             );
         }
@@ -265,23 +303,32 @@ class Reactions
 
     public function current_user_reaction(int $post_id): string
     {
+        $reactions = $this->current_user_reactions($post_id);
+
+        return $reactions[0] ?? '';
+    }
+
+    /**
+     * Retrieve the reactions stored for the current visitor.
+     *
+     * @return string[]
+     */
+    public function current_user_reactions(int $post_id): array
+    {
         if ($post_id <= 0) {
-            return '';
+            return [];
         }
 
         $name  = $this->cookie_name($post_id);
-        $value = isset($_COOKIE[$name]) ? sanitize_key(wp_unslash($_COOKIE[$name])) : '';
+        $value = isset($_COOKIE[$name]) ? wp_unslash($_COOKIE[$name]) : '';
 
-        if (!$this->is_valid_slug($value)) {
-            return '';
-        }
-
-        return $value;
+        return $this->normalize_reaction_list($value);
     }
 
     public function is_throttled(int $post_id): bool
     {
-        return $this->current_user_reaction($post_id) !== '';
+        // Users can now react with multiple emojis, so throttling is disabled.
+        return false;
     }
 
     public function mark_reacted(int $post_id, string $reaction): void
@@ -290,15 +337,41 @@ class Reactions
             return;
         }
 
-        $ttl     = $this->cookie_lifetime();
+        $current = $this->current_user_reactions($post_id);
+
+        if (!in_array($reaction, $current, true)) {
+            $current[] = $reaction;
+        }
+
+        $this->store_user_reactions($post_id, $current);
+    }
+
+    public function store_user_reactions(int $post_id, array $reactions): void
+    {
+        if ($post_id <= 0) {
+            return;
+        }
+
+        $sanitized = $this->normalize_reaction_list($reactions);
+
         $name    = $this->cookie_name($post_id);
-        $expires = time() + $ttl;
         $secure  = is_ssl();
         $path    = defined('COOKIEPATH') ? COOKIEPATH : '/';
         $domain  = defined('COOKIE_DOMAIN') ? COOKIE_DOMAIN : '';
+        $ttl     = $this->cookie_lifetime();
 
-        setcookie($name, $reaction, $expires, $path, $domain, $secure, true);
-        $_COOKIE[$name] = $reaction;
+        if (empty($sanitized)) {
+            setcookie($name, '', time() - 3600, $path, $domain, $secure, true);
+            unset($_COOKIE[$name]);
+
+            return;
+        }
+
+        $value   = wp_json_encode($sanitized);
+        $expires = time() + $ttl;
+
+        setcookie($name, $value, $expires, $path, $domain, $secure, true);
+        $_COOKIE[$name] = $value;
     }
 
     public function cookie_name(int $post_id): string
@@ -332,7 +405,7 @@ class Reactions
         $sticky_radius = absint($options['sticky_radius'] ?? $defaults['sticky_radius']);
         $style     = '';
         $classes   = ['waki-reactions'];
-        $user_slug = $this->current_user_reaction($post_id);
+        $user_reactions = $this->current_user_reactions($post_id);
 
         if ($placement === 'sticky') {
             $classes[] = 'waki-reactions-floating';
@@ -355,8 +428,8 @@ class Reactions
             'style'                     => $style,
         ];
 
-        if ($user_slug !== '') {
-            $attributes['data-user'] = $user_slug;
+        if (!empty($user_reactions)) {
+            $attributes['data-user'] = implode(',', $user_reactions);
         }
 
         $attributes = $this->format_attributes($attributes);
@@ -369,7 +442,7 @@ class Reactions
                 $label      = $data['label'];
                 $emoji      = $data['emoji'];
                 $count      = $counts[$slug] ?? 0;
-                $is_current = ($user_slug === $slug);
+                $is_current = in_array($slug, $user_reactions, true);
                 ?>
                 <button
                     type="button"
@@ -388,6 +461,60 @@ class Reactions
         $markup = trim((string) ob_get_clean());
 
         return (string) apply_filters('your_share_reactions_markup', $markup, $post_id, $placement, $active, $counts);
+    }
+
+    /**
+     * Normalise a list of reactions coming from cookies, storage, or user input.
+     *
+     * @param mixed $value Raw reaction list.
+     *
+     * @return string[]
+     */
+    private function normalize_reaction_list($value): array
+    {
+        $library = $this->emojis();
+        $output  = [];
+
+        if (is_string($value) && $value !== '') {
+            $decoded = json_decode($value, true);
+
+            if (is_array($decoded)) {
+                $value = $decoded;
+            }
+        }
+
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
+            $value = [];
+        }
+
+        foreach ($value as $key => $item) {
+            $slug = is_int($key) ? (string) $item : (string) $key;
+            $slug = sanitize_key($slug);
+
+            if ($slug === '' || !isset($library[$slug])) {
+                continue;
+            }
+
+            $enabled = true;
+
+            if (is_bool($item) || is_int($item)) {
+                $enabled = !empty($item);
+            }
+
+            if (!$enabled) {
+                continue;
+            }
+
+            if (!in_array($slug, $output, true)) {
+                $output[] = $slug;
+            }
+        }
+
+        return $output;
     }
 
     private function script_settings(): array

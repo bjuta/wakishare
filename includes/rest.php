@@ -49,6 +49,11 @@ class Rest
                         'type'              => 'string',
                         'sanitize_callback' => 'sanitize_key',
                     ],
+                    'intent'   => [
+                        'required'          => false,
+                        'type'              => 'string',
+                        'sanitize_callback' => 'sanitize_text_field',
+                    ],
                 ],
             ]
         );
@@ -107,26 +112,41 @@ class Rest
             return new WP_Error('your_share_invalid_reaction', __('Unknown reaction.', $this->text_domain), ['status' => 400]);
         }
 
-        if ($this->reactions->is_throttled($post_id)) {
-            return new WP_Error(
-                'your_share_reacted',
-                __('You have already reacted to this post.', $this->text_domain),
-                [
-                    'status'        => 429,
-                    'user_reaction' => $this->reactions->current_user_reaction($post_id),
-                ]
-            );
+        $intent = strtolower((string) $request->get_param('intent'));
+
+        if (!in_array($intent, ['add', 'remove', 'toggle'], true)) {
+            $intent = 'toggle';
         }
 
-        $counts = $this->reactions->increment($post_id, $reaction);
-        $this->reactions->mark_reacted($post_id, $reaction);
+        $current = $this->reactions->current_user_reactions($post_id);
+        $has     = in_array($reaction, $current, true);
+        $counts  = $this->reactions->get_counts($post_id);
+        $status  = 'unchanged';
+
+        if ($intent === 'remove' || ($intent === 'toggle' && $has)) {
+            if ($has) {
+                $counts = $this->reactions->decrement($post_id, $reaction);
+                $current = array_values(array_diff($current, [$reaction]));
+                $status  = 'removed';
+            }
+        } else {
+            if (!$has) {
+                $counts   = $this->reactions->increment($post_id, $reaction);
+                $current[] = $reaction;
+                $status    = 'added';
+            }
+        }
+
+        $this->reactions->store_user_reactions($post_id, $current);
 
         return new WP_REST_Response(
             [
                 'post_id'       => $post_id,
                 'reaction'      => $reaction,
                 'counts'        => $counts,
-                'user_reaction' => $reaction,
+                'user_reactions'=> $current,
+                'user_reaction' => $current[0] ?? '',
+                'status'        => $status,
             ],
             200
         );
@@ -141,13 +161,14 @@ class Rest
         }
 
         $counts   = $this->reactions->get_counts($post_id);
-        $reaction = $this->reactions->current_user_reaction($post_id);
+        $reactions = $this->reactions->current_user_reactions($post_id);
 
         return new WP_REST_Response(
             [
                 'post_id'       => $post_id,
                 'counts'        => $counts,
-                'user_reaction' => $reaction,
+                'user_reactions'=> $reactions,
+                'user_reaction' => $reactions[0] ?? '',
             ],
             200
         );
