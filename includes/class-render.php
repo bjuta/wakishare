@@ -147,6 +147,13 @@ class Render
         }
 
         $max_visible     = $visible_limit;
+        $inline_reactions_markup = '';
+
+        if ($placement === 'inline') {
+            $inline_reactions_markup = $this->reactions->render_inline($post_id);
+        }
+
+        $max_visible     = 5;
         $visible_buttons = [];
         $hidden_buttons  = [];
         $button_index    = 0;
@@ -230,31 +237,33 @@ class Render
             'data-your-share-count-ttl'      => $counts_state['ttl'],
         ]); ?>
         <div class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr($style_inline); ?>"<?php echo $data_attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-            <?php if ($counts_state['enabled'] && !empty($opts['counts_show_total'])) : ?>
-                <div class="waki-share-total" data-your-share-total>
-                    <span class="waki-total-label"><?php esc_html_e('Shares', $this->text_domain); ?></span>
-                    <span class="waki-total-value" data-your-share-total-value data-value="<?php echo esc_attr((string) $counts_state['total']); ?>"><?php echo esc_html($this->format_count($counts_state['total'])); ?></span>
-                </div>
-            <?php endif; ?>
-            <div class="waki-share-buttons" data-your-share-buttons>
-                <?php foreach ($visible_buttons as $button_markup) :
-                    echo $button_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                endforeach; ?>
-                <?php if (!empty($hidden_buttons)) : ?>
-                    <button
-                        type="button"
-                        class="waki-btn waki-btn--toggle"
-                        data-net="more"
-                        data-share-toggle="more"
-                        aria-expanded="false"
-                        aria-label="<?php esc_attr_e('More share options', $this->text_domain); ?>"
-                        <?php if ($more_id !== '') : ?>aria-controls="<?php echo esc_attr($more_id); ?>"<?php endif; ?>
-                    >
-                        <span class="waki-icon" aria-hidden="true">
-                            <?php echo $this->icons->svg('share-toggle'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        </span>
-                    </button>
+            <div class="waki-share-row">
+                <?php if ($counts_state['enabled'] && !empty($opts['counts_show_total'])) : ?>
+                    <div class="waki-share-total" data-your-share-total>
+                        <span class="waki-total-label"><?php esc_html_e('Shares', $this->text_domain); ?></span>
+                        <span class="waki-total-value" data-your-share-total-value data-value="<?php echo esc_attr((string) $counts_state['total']); ?>"><?php echo esc_html($this->format_count($counts_state['total'])); ?></span>
+                    </div>
                 <?php endif; ?>
+                <div class="waki-share-buttons" data-your-share-buttons>
+                    <?php foreach ($visible_buttons as $button_markup) :
+                        echo $button_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    endforeach; ?>
+                    <?php if (!empty($hidden_buttons)) : ?>
+                        <button
+                            type="button"
+                            class="waki-btn waki-btn--toggle"
+                            data-net="more"
+                            data-share-toggle="more"
+                            aria-expanded="false"
+                            aria-label="<?php esc_attr_e('More share options', $this->text_domain); ?>"
+                            <?php if ($more_id !== '') : ?>aria-controls="<?php echo esc_attr($more_id); ?>"<?php endif; ?>
+                        >
+                            <span class="waki-icon" aria-hidden="true">
+                                <?php echo $this->icons->svg('share-toggle'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                            </span>
+                        </button>
+                    <?php endif; ?>
+                </div>
             </div>
             <?php if (!empty($hidden_buttons)) : ?>
                 <div class="waki-share-extra" data-your-share-extra<?php echo $more_id !== '' ? ' id="' . esc_attr($more_id) . '"' : ''; ?> hidden aria-hidden="true">
@@ -263,18 +272,13 @@ class Render
                     endforeach; ?>
                 </div>
             <?php endif; ?>
+            <?php if ($inline_reactions_markup !== '') : ?>
+                <div class="waki-share-react-field" data-your-share-react>
+                    <span class="waki-share-react-label"><?php esc_html_e('React', $this->text_domain); ?></span>
+                    <?php echo $inline_reactions_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                </div>
+            <?php endif; ?>
         </div>
-        <?php
-        if ($placement === 'inline') {
-            $post_id = 0;
-
-            if (isset($share_ctx['post']) && $share_ctx['post'] instanceof \WP_Post) {
-                $post_id = (int) $share_ctx['post']->ID;
-            }
-
-            echo $this->reactions->render_inline($post_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-        }
-        ?>
         <?php
         return trim((string) ob_get_clean());
     }
