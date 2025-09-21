@@ -1367,46 +1367,114 @@ class Admin
                 return strcasecmp((string) $a_label, (string) $b_label);
             }
         );
-        ?>
-        <div class="your-share-reaction-picker" data-your-share-reaction-picker>
-            <label for="<?php echo esc_attr($search_id); ?>" class="your-share-reaction-picker__label"><?php esc_html_e('Search reactions', $this->text_domain); ?></label>
-            <input
-                type="search"
-                id="<?php echo esc_attr($search_id); ?>"
-                class="your-share-reaction-search"
-                placeholder="<?php esc_attr_e('Filter by emoji or name…', $this->text_domain); ?>"
-                data-your-share-reaction-search
-            >
-        </div>
-        <div class="your-share-field-grid your-share-reaction-grid" data-your-share-reaction-list>
-            <?php foreach ($keys as $slug) :
-                if (!isset($emojis[$slug])) {
-                    continue;
+        $enabled_sorted = array_values(
+            array_filter(
+                $keys,
+                static function ($slug) use ($enabled_lookup) {
+                    return !empty($enabled_lookup[$slug]);
                 }
-                $emoji      = $emojis[$slug];
-                $label      = $emoji['label'] ?? $slug;
-                $symbol     = $emoji['emoji'] ?? '';
-                $image_url  = $this->reactions->emoji_image_url($emoji);
-                $is_enabled = !empty($enabled_lookup[$slug]);
-                $filter_key = function_exists('mb_strtolower') ? mb_strtolower((string) $label) : strtolower((string) $label);
-                $symbol_class = 'your-share-reaction-symbol' . ($image_url !== '' ? ' has-image' : '');
-                ?>
-                <label
-                    class="your-share-reaction-option<?php echo $is_enabled ? ' is-active' : ''; ?>"
-                    data-reaction-slug="<?php echo esc_attr($slug); ?>"
-                    data-reaction-label="<?php echo esc_attr(wp_strip_all_tags(wp_specialchars_decode($filter_key, ENT_QUOTES))); ?>"
-                >
-                    <input type="checkbox" name="<?php echo esc_attr($this->name('reactions_enabled') . '[' . $slug . ']'); ?>" value="1" <?php checked($is_enabled, true); ?>>
-                    <span class="<?php echo esc_attr($symbol_class); ?>" aria-hidden="true">
-                        <?php if ($image_url !== '') : ?>
-                            <img src="<?php echo esc_url($image_url); ?>" alt="" role="presentation">
-                        <?php else : ?>
-                            <?php echo esc_html($symbol); ?>
-                        <?php endif; ?>
+            )
+        );
+        $enabled_count = count($enabled_sorted);
+        /* translators: %s: number of enabled emoji reactions. */
+        $count_template = esc_html__('Enabled reactions: %s', $this->text_domain);
+        $library_open   = $enabled_count === 0;
+        ?>
+        <div class="your-share-reaction-manager" data-your-share-reaction-manager>
+            <div class="your-share-reaction-summary">
+                <div class="your-share-reaction-summary__header">
+                    <strong><?php esc_html_e('Enabled reactions', $this->text_domain); ?></strong>
+                    <span
+                        class="your-share-reaction-summary__count"
+                        data-your-share-reaction-total
+                        data-template="<?php echo esc_attr($count_template); ?>"
+                    >
+                        <?php echo esc_html(sprintf($count_template, $enabled_count)); ?>
                     </span>
-                    <span class="your-share-reaction-text"><?php echo esc_html($label); ?></span>
-                </label>
-            <?php endforeach; ?>
+                </div>
+                <p class="description"><?php esc_html_e('Readers can respond with the emojis you enable. Expand the library to add or remove reactions.', $this->text_domain); ?></p>
+                <div class="your-share-reaction-chips" data-your-share-reaction-selected>
+                    <?php foreach ($enabled_sorted as $slug) :
+                        if (!isset($emojis[$slug])) {
+                            continue;
+                        }
+                        $emoji     = $emojis[$slug];
+                        $label     = $emoji['label'] ?? $slug;
+                        $symbol    = $emoji['emoji'] ?? '';
+                        $image_url = $this->reactions->emoji_image_url($emoji);
+                        ?>
+                        <span class="your-share-reaction-chip">
+                            <span class="your-share-reaction-chip__symbol<?php echo $image_url !== '' ? ' has-image' : ''; ?>" aria-hidden="true">
+                                <?php if ($image_url !== '') : ?>
+                                    <img src="<?php echo esc_url($image_url); ?>" alt="" role="presentation">
+                                <?php else : ?>
+                                    <?php echo esc_html($symbol); ?>
+                                <?php endif; ?>
+                            </span>
+                            <span class="your-share-reaction-chip__text"><?php echo esc_html($label); ?></span>
+                        </span>
+                    <?php endforeach; ?>
+                </div>
+                <p class="your-share-reaction-empty" data-your-share-reaction-empty<?php echo $enabled_count > 0 ? ' hidden' : ''; ?>>
+                    <?php esc_html_e('No emojis are currently enabled. Open the library to choose the reactions readers will see.', $this->text_domain); ?>
+                </p>
+            </div>
+            <details class="your-share-reaction-library" data-your-share-reaction-library<?php echo $library_open ? ' open' : ''; ?>>
+                <summary class="your-share-reaction-library__summary">
+                    <?php
+                    /* translators: %d: number of emojis available in the library. */
+                    printf(esc_html__('Browse emoji library (%d available)', $this->text_domain), count($keys));
+                    ?>
+                </summary>
+                <div class="your-share-reaction-library__body">
+                    <div class="your-share-reaction-picker" data-your-share-reaction-picker>
+                        <label for="<?php echo esc_attr($search_id); ?>" class="your-share-reaction-picker__label"><?php esc_html_e('Search reactions', $this->text_domain); ?></label>
+                        <input
+                            type="search"
+                            id="<?php echo esc_attr($search_id); ?>"
+                            class="your-share-reaction-search"
+                            placeholder="<?php esc_attr_e('Filter by emoji or name…', $this->text_domain); ?>"
+                            data-your-share-reaction-search
+                        >
+                    </div>
+                    <div class="your-share-field-grid your-share-reaction-grid" data-your-share-reaction-list>
+                        <?php foreach ($keys as $slug) :
+                            if (!isset($emojis[$slug])) {
+                                continue;
+                            }
+                            $emoji       = $emojis[$slug];
+                            $label       = $emoji['label'] ?? $slug;
+                            $symbol      = $emoji['emoji'] ?? '';
+                            $image_url   = $this->reactions->emoji_image_url($emoji);
+                            $is_enabled  = !empty($enabled_lookup[$slug]);
+                            $filter_key  = function_exists('mb_strtolower') ? mb_strtolower((string) $label) : strtolower((string) $label);
+                            $symbol_class = 'your-share-reaction-symbol' . ($image_url !== '' ? ' has-image' : '');
+                            $search_label = wp_strip_all_tags(wp_specialchars_decode($filter_key, ENT_QUOTES));
+                            ?>
+                            <label
+                                class="your-share-reaction-option<?php echo $is_enabled ? ' is-active' : ''; ?>"
+                                data-reaction-slug="<?php echo esc_attr($slug); ?>"
+                                data-reaction-label="<?php echo esc_attr($search_label); ?>"
+                                data-reaction-name="<?php echo esc_attr($label); ?>"
+                                data-reaction-symbol="<?php echo esc_attr($symbol); ?>"
+                                <?php if ($image_url !== '') : ?>
+                                    data-reaction-image="<?php echo esc_url($image_url); ?>"
+                                <?php endif; ?>
+                            >
+                                <input type="checkbox" name="<?php echo esc_attr($this->name('reactions_enabled') . '[' . $slug . ']'); ?>" value="1" <?php checked($is_enabled, true); ?>>
+                                <span class="<?php echo esc_attr($symbol_class); ?>" aria-hidden="true">
+                                    <?php if ($image_url !== '') : ?>
+                                        <img src="<?php echo esc_url($image_url); ?>" alt="" role="presentation">
+                                    <?php else : ?>
+                                        <?php echo esc_html($symbol); ?>
+                                    <?php endif; ?>
+                                </span>
+                                <span class="your-share-reaction-text"><?php echo esc_html($label); ?></span>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </details>
         </div>
         <p class="description"><?php esc_html_e('Toggle the emoji set available to readers. At least one reaction must remain enabled.', $this->text_domain); ?></p>
         <?php
