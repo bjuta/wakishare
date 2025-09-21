@@ -40,6 +40,7 @@ class Icons
             'email'    => 'email',
             'copy'     => 'copy',
             'native'   => 'native',
+            'share-toggle' => 'share',
             'instagram'     => 'instagram',
             'tiktok'        => 'tiktok',
             'youtube'       => 'youtube',
