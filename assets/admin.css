@@ -424,8 +424,9 @@
 }
 
 .your-share-analytics__canvas canvas {
+  display: block;
   width: 100% !important;
-  height: 100% !important;
+  height: auto;
 }
 
 .your-share-analytics__lists {
