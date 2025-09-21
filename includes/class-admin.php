@@ -148,7 +148,12 @@ class Admin
                     </a>
                 <?php endforeach; ?>
             </h2>
-            <form method="post" action="options.php" data-your-share-form>
+            <form
+                method="post"
+                action="options.php"
+                data-your-share-form
+                data-your-share-referer-base="<?php echo esc_attr($referer_base); ?>"
+            >
                 <?php settings_fields($this->option_group); ?>
                 <input type="hidden" name="<?php echo esc_attr($this->options->key()); ?>[current_tab]" value="<?php echo esc_attr($current_tab); ?>" data-your-share-current-tab>
                 <div class="your-share-tab-panels">
@@ -167,20 +172,8 @@ class Admin
                     <?php endforeach; ?>
                 </div>
                 <?php
-                $referer_base  = add_query_arg('page', $this->slug, admin_url('options-general.php'));
-                $referer_value = $referer_base;
-
-                if (!empty($current_tab)) {
-                    $referer_value = add_query_arg('tab', $current_tab, $referer_value);
-                }
+                $referer_base = add_query_arg('page', $this->slug, admin_url('options-general.php'));
                 ?>
-                <input
-                    type="hidden"
-                    name="_wp_http_referer"
-                    value="<?php echo esc_attr($referer_value); ?>"
-                    data-your-share-referer
-                    data-base="<?php echo esc_attr($referer_base); ?>"
-                >
                 <?php submit_button(__('Save settings', $this->text_domain)); ?>
             </form>
         </div>
