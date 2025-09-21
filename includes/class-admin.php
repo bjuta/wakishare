@@ -160,6 +160,24 @@ class Admin
                         </div>
                     <?php endforeach; ?>
                 </div>
+                <?php
+                $referer_base  = add_query_arg('page', $this->slug, admin_url('options-general.php'));
+                $referer_value = $referer_base;
+
+                if (!empty($current_tab)) {
+                    $referer_value = add_query_arg('tab', $current_tab, $referer_value);
+                }
+
+                $referer_base  = wp_make_link_relative($referer_base);
+                $referer_value = wp_make_link_relative($referer_value);
+                ?>
+                <input
+                    type="hidden"
+                    name="_wp_http_referer"
+                    value="<?php echo esc_attr($referer_value); ?>"
+                    data-your-share-referer
+                    data-base="<?php echo esc_attr($referer_base); ?>"
+                >
                 <?php submit_button(__('Save settings', $this->text_domain)); ?>
             </form>
         </div>

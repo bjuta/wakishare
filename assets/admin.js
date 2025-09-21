@@ -342,8 +342,36 @@
     var tabs = qsa(root, '[data-your-share-tab]');
     var panels = qsa(root, '[data-your-share-panel]');
     var currentInput = qs(root, '[data-your-share-current-tab]');
+    var refererInput = qs(root, '[data-your-share-referer]');
     if (!tabs.length || !panels.length || !currentInput){
       return;
+    }
+
+    function updateReferer(tab){
+      if (!refererInput){
+        return;
+      }
+      var base = refererInput.getAttribute('data-base') || '';
+      if (!base){
+        refererInput.value = '';
+        return;
+      }
+      try {
+        var url = new URL(base, window.location.origin);
+        if (tab){
+          url.searchParams.set('tab', tab);
+        } else {
+          url.searchParams.delete('tab');
+        }
+        refererInput.value = url.pathname + url.search;
+      } catch (error) {
+        var cleaned = base.replace(/([?&])tab=[^&#]*/g, '$1').replace(/[?&]$/, '');
+        if (tab){
+          refererInput.value = cleaned + (cleaned.indexOf('?') === -1 ? '?' : '&') + 'tab=' + tab;
+        } else {
+          refererInput.value = cleaned;
+        }
+      }
     }
 
     function activateTab(tab, updateUrl){
@@ -370,6 +398,7 @@
       }
 
       currentInput.value = tab;
+      updateReferer(tab);
 
       if (updateUrl){
         try {
