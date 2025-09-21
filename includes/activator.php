@@ -44,13 +44,17 @@ class Activator
         $events_sql = "CREATE TABLE {$events_table} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             post_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            event_type varchar(20) NOT NULL DEFAULT '',
             network varchar(50) NOT NULL DEFAULT '',
+            placement varchar(50) NOT NULL DEFAULT '',
+            device varchar(20) NOT NULL DEFAULT '',
             share_url text NOT NULL,
             ip_address varchar(100) NOT NULL DEFAULT '',
             user_agent text NULL,
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            KEY post_network (post_id, network)
+            KEY post_network (post_id, network),
+            KEY created_at (created_at)
         ) {$charset};";
 
         $reactions_sql = "CREATE TABLE {$reactions_table} (

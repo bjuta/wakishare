@@ -1,6 +1,7 @@
 (function(){
   var messages = window.yourShareMessages || {};
   var reactionsConfig = window.yourShareReactions || {};
+  var analyticsConfig = window.yourShareAnalytics || {};
   var reactionStore = null;
   var mediaConfig = window.yourShareMedia || {};
 
@@ -700,6 +701,173 @@
     }
   }
 
+  function analyticsRestRoot(){
+    if (!analyticsConfig || !analyticsConfig.rest || !analyticsConfig.rest.root){
+      return '';
+    }
+    var root = String(analyticsConfig.rest.root);
+    if (!root){
+      return '';
+    }
+    if (root.charAt(root.length - 1) === '/'){
+      root = root.slice(0, -1);
+    }
+    return root;
+  }
+
+  function analyticsHeaders(){
+    var headers = {};
+    if (analyticsConfig && analyticsConfig.rest && analyticsConfig.rest.nonce){
+      headers['X-WP-Nonce'] = analyticsConfig.rest.nonce;
+    }
+    return headers;
+  }
+
+  function pushDataLayer(eventType, payload){
+    try {
+      if (!window.dataLayer || typeof window.dataLayer.push !== 'function'){
+        return;
+      }
+      window.dataLayer.push({
+        event: 'your_share_interaction',
+        interaction_type: eventType,
+        post_id: payload.post_id,
+        network: payload.network,
+        placement: payload.placement,
+        share_url: payload.url
+      });
+    } catch (error) {
+      // ignore dataLayer errors
+    }
+  }
+
+  function pushGa4(eventType, payload){
+    if (!analyticsConfig || !analyticsConfig.ga4){
+      return;
+    }
+    try {
+      if (typeof window.gtag === 'function'){
+        window.gtag('event', 'your_share_interaction', {
+          interaction_type: eventType,
+          network: payload.network,
+          post_id: payload.post_id,
+          placement: payload.placement,
+          share_url: payload.url
+        });
+      }
+    } catch (error) {
+      // ignore GA errors
+    }
+  }
+
+  function sendAnalyticsEvent(eventType, details){
+    if (!details){
+      details = {};
+    }
+
+    var payload = {
+      post_id: typeof details.postId === 'number' ? details.postId : parseInt(details.postId || '0', 10),
+      network: details.network || '',
+      placement: details.placement || '',
+      url: details.url || ''
+    };
+
+    if (!isFinite(payload.post_id)){
+      payload.post_id = 0;
+    }
+
+    var consoleEnabled = !!(analyticsConfig && analyticsConfig.console);
+    var storeEnabled = !!(analyticsConfig && analyticsConfig.store);
+    var ga4Enabled = !!(analyticsConfig && analyticsConfig.ga4);
+
+    if (consoleEnabled){
+      try {
+        console.info('[Your Share]', eventType, payload);
+      } catch (error) {
+        // ignore logging errors
+      }
+    }
+
+    if (storeEnabled || ga4Enabled){
+      pushDataLayer(eventType, payload);
+    }
+    if (ga4Enabled){
+      pushGa4(eventType, payload);
+    }
+
+    if (!storeEnabled){
+      return;
+    }
+
+    if (typeof window.fetch !== 'function'){
+      return;
+    }
+
+    var root = analyticsRestRoot();
+    if (!root){
+      return;
+    }
+
+    var headers = analyticsHeaders();
+    headers['Content-Type'] = 'application/json';
+
+    try {
+      window.fetch(root + '/event', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: headers,
+        body: JSON.stringify({
+          event: eventType,
+          post_id: payload.post_id,
+          network: payload.network,
+          placement: payload.placement,
+          url: payload.url
+        })
+      }).catch(function(){
+        // swallow network errors
+      });
+    } catch (error) {
+      // ignore fetch issues
+    }
+  }
+
+  function getSharePostId(wrapper){
+    if (!wrapper){
+      return 0;
+    }
+    var raw = wrapper.getAttribute('data-your-share-post-id') || wrapper.getAttribute('data-your-share-post') || '0';
+    var parsed = parseInt(raw, 10);
+    if (!isFinite(parsed)){
+      return 0;
+    }
+    return parsed;
+  }
+
+  function trackShare(wrapper, network, url){
+    var placement = '';
+    if (wrapper){
+      placement = wrapper.getAttribute('data-your-share-placement') || '';
+    }
+    sendAnalyticsEvent('share', {
+      postId: getSharePostId(wrapper),
+      network: network,
+      placement: placement,
+      url: url || ''
+    });
+  }
+
+  function trackReaction(bar, postId, slug){
+    var placement = '';
+    if (bar){
+      placement = bar.getAttribute('data-placement') || '';
+    }
+    sendAnalyticsEvent('reaction', {
+      postId: postId,
+      network: slug,
+      placement: placement
+    });
+  }
+
   function getThrottleConfig(){
     var throttle = reactionsConfig && reactionsConfig.throttle ? reactionsConfig.throttle : {};
     var ttl = typeof throttle.cookieTtl === 'number' ? throttle.cookieTtl : 31536000;
@@ -963,6 +1131,7 @@
         }
         setStoredReaction(postId, slug);
         highlightReaction(bar, slug);
+        trackReaction(bar, postId, slug);
       }).catch(function(error){
         pending = false;
         if (error && error.data && error.data.user_reaction){
@@ -1037,14 +1206,16 @@
 
     var network = button.getAttribute('data-net');
 
-    if (network === 'copy') {
-      event.preventDefault();
+      if (network === 'copy') {
+        event.preventDefault();
+      trackShare(wrapper, network, window.location.href);
       handleCopy();
       return;
     }
 
     if (network === 'native') {
       event.preventDefault();
+      trackShare(wrapper, network, window.location.href);
       if (navigator.share) {
         navigator.share({ title: document.title, url: window.location.href }).catch(function(){});
       } else {
@@ -1055,10 +1226,12 @@
 
     var href = button.getAttribute('href') || '';
     if (href.indexOf('mailto:') === 0 || href.indexOf('wa.me') !== -1) {
+      trackShare(wrapper, network, href);
       return;
     }
 
     event.preventDefault();
+    trackShare(wrapper, network, href);
     openPopup(href);
   });
 
