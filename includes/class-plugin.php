@@ -75,8 +75,8 @@ class Plugin
             return new UTM($c->get(Options::class));
         });
 
-        $this->container->set(Reactions::class, function (Container $c): Reactions {
-            return new Reactions($c->get(Options::class), self::TEXT_DOMAIN);
+        $this->container->set(Reactions::class, function (Container $c) use ($plugin_file): Reactions {
+            return new Reactions($c->get(Options::class), self::TEXT_DOMAIN, $plugin_file);
         });
 
         $this->container->set(Rest::class, function (Container $c): Rest {

@@ -1342,8 +1342,10 @@ class Admin
                 $emoji      = $emojis[$slug];
                 $label      = $emoji['label'] ?? $slug;
                 $symbol     = $emoji['emoji'] ?? '';
+                $image_url  = $this->reactions->emoji_image_url($emoji);
                 $is_enabled = !empty($enabled_lookup[$slug]);
                 $filter_key = function_exists('mb_strtolower') ? mb_strtolower((string) $label) : strtolower((string) $label);
+                $symbol_class = 'your-share-reaction-symbol' . ($image_url !== '' ? ' has-image' : '');
                 ?>
                 <label
                     class="your-share-reaction-option<?php echo $is_enabled ? ' is-active' : ''; ?>"
@@ -1351,7 +1353,13 @@ class Admin
                     data-reaction-label="<?php echo esc_attr(wp_strip_all_tags(wp_specialchars_decode($filter_key, ENT_QUOTES))); ?>"
                 >
                     <input type="checkbox" name="<?php echo esc_attr($this->name('reactions_enabled') . '[' . $slug . ']'); ?>" value="1" <?php checked($is_enabled, true); ?>>
-                    <span class="your-share-reaction-symbol" aria-hidden="true"><?php echo esc_html($symbol); ?></span>
+                    <span class="<?php echo esc_attr($symbol_class); ?>" aria-hidden="true">
+                        <?php if ($image_url !== '') : ?>
+                            <img src="<?php echo esc_url($image_url); ?>" alt="" role="presentation">
+                        <?php else : ?>
+                            <?php echo esc_html($symbol); ?>
+                        <?php endif; ?>
+                    </span>
                     <span class="your-share-reaction-text"><?php echo esc_html($label); ?></span>
                 </label>
             <?php endforeach; ?>
