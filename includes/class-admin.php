@@ -8,6 +8,9 @@ if (!defined('ABSPATH')) {
 
 class Admin
 {
+    private const ANALYTICS_EXPORT_FORM_ID = 'your-share-analytics-export-form';
+    private const ANALYTICS_RESET_FORM_ID  = 'your-share-analytics-reset-form';
+
     /** @var Options */
     private $options;
 
@@ -174,6 +177,7 @@ class Admin
                 </div>
                 <?php submit_button(__('Save settings', $this->text_domain)); ?>
             </form>
+            <?php $this->render_analytics_tool_forms(); ?>
         </div>
         <?php
     }
@@ -1255,20 +1259,36 @@ class Admin
                 </div>
             </div>
             <div class="your-share-analytics__tools" data-your-share-analytics-tools>
-                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                    <input type="hidden" name="action" value="your_share_export_events">
-                    <?php wp_nonce_field('your_share_export_events', 'your_share_export_events_nonce'); ?>
-                    <button type="submit" class="button"><?php echo esc_html($export_label); ?></button>
-                </form>
-                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                    <input type="hidden" name="action" value="your_share_reset_events">
-                    <?php wp_nonce_field('your_share_reset_events', 'your_share_reset_events_nonce'); ?>
-                    <button type="submit" class="button button-secondary" data-your-share-analytics-reset onclick="return confirm('<?php echo esc_js($reset_warning); ?>');"><?php echo esc_html($reset_label); ?></button>
-                </form>
+                <button type="submit" class="button" form="<?php echo esc_attr(self::ANALYTICS_EXPORT_FORM_ID); ?>"><?php echo esc_html($export_label); ?></button>
+                <button
+                    type="submit"
+                    class="button button-secondary"
+                    form="<?php echo esc_attr(self::ANALYTICS_RESET_FORM_ID); ?>"
+                    data-your-share-analytics-reset
+                    onclick="return confirm('<?php echo esc_js($reset_warning); ?>');"
+                >
+                    <?php echo esc_html($reset_label); ?>
+                </button>
                 <?php if (!$enabled) : ?>
                     <p class="description your-share-analytics__notice"><?php esc_html_e('Enable event storage below to populate analytics and unlock exports.', $this->text_domain); ?></p>
                 <?php endif; ?>
             </div>
+        </div>
+        <?php
+    }
+
+    private function render_analytics_tool_forms(): void
+    {
+        ?>
+        <div class="your-share-analytics-tool-forms" aria-hidden="true" style="display: none;">
+            <form id="<?php echo esc_attr(self::ANALYTICS_EXPORT_FORM_ID); ?>" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <input type="hidden" name="action" value="your_share_export_events">
+                <?php wp_nonce_field('your_share_export_events', 'your_share_export_events_nonce'); ?>
+            </form>
+            <form id="<?php echo esc_attr(self::ANALYTICS_RESET_FORM_ID); ?>" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <input type="hidden" name="action" value="your_share_reset_events">
+                <?php wp_nonce_field('your_share_reset_events', 'your_share_reset_events_nonce'); ?>
+            </form>
         </div>
         <?php
     }
