@@ -1237,7 +1237,9 @@ class Admin
                     </div>
                 </div>
                 <div class="your-share-analytics__canvas">
-                    <canvas width="640" height="320" data-your-share-analytics-chart aria-label="<?php esc_attr_e('Analytics event trend', $this->text_domain); ?>" role="img"></canvas>
+                    <div class="your-share-analytics__canvas-viewport">
+                        <canvas width="640" height="320" data-your-share-analytics-chart aria-label="<?php esc_attr_e('Analytics event trend', $this->text_domain); ?>" role="img"></canvas>
+                    </div>
                     <p class="description" data-your-share-analytics-empty hidden><?php esc_html_e('No events recorded for the selected range yet.', $this->text_domain); ?></p>
                 </div>
             </div>
