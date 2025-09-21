@@ -90,6 +90,6 @@ class Icons
 
     private function fallback(): string
     {
-        return '<svg class="waki-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="currentColor"><path d="M12 3l5 5h-3v6h-4V8H7l5-5z"/><path d="M5 17h14v4H5z"/></svg>';
+        return '<svg class="waki-icon__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="currentColor"><path d="M12 3l5 5h-3v6h-4V8H7l5-5z"/><path d="M5 17h14v4H5z"/></svg>';
     }
 }
