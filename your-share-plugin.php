@@ -26,6 +26,7 @@ require_once __DIR__ . '/includes/class-asset-loader.php';
 require_once __DIR__ . '/includes/class-analytics.php';
 require_once __DIR__ . '/includes/class-admin.php';
 require_once __DIR__ . '/includes/class-shortcode.php';
+require_once __DIR__ . '/includes/class-blocks.php';
 require_once __DIR__ . '/includes/rest.php';
 
 use YourShare\Activator;
