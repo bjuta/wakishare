@@ -38,23 +38,24 @@ class Asset_Loader
 
     public function register_hooks(): void
     {
-        add_action('wp_enqueue_scripts', [$this, 'enqueue_public']);
+        add_action('init', [$this, 'register_public_assets'], 9);
+        add_action('wp_enqueue_scripts', [$this, 'maybe_enqueue_public']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin']);
     }
 
-    public function enqueue_public(): void
+    public function register_public_assets(): void
     {
         $style_handle  = 'your-share';
         $script_handle = 'your-share';
 
-        wp_enqueue_style(
+        wp_register_style(
             $style_handle,
             $this->plugin_url . 'assets/share.css',
             [],
             $this->version
         );
 
-        wp_enqueue_script(
+        wp_register_script(
             $script_handle,
             $this->plugin_url . 'assets/share.js',
             [],
@@ -62,6 +63,17 @@ class Asset_Loader
             true
         );
 
+        $this->localize_public_scripts($script_handle);
+    }
+
+    public function maybe_enqueue_public(): void
+    {
+        // Assets are conditionally enqueued by blocks and shortcodes. The method
+        // remains to preserve backward compatibility with previous hooks.
+    }
+
+    private function localize_public_scripts(string $script_handle): void
+    {
         wp_localize_script(
             $script_handle,
             'yourShareMessages',

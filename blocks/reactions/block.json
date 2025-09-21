@@ -1,0 +1,30 @@
+{
+    "apiVersion": 3,
+    "name": "your-share/reactions",
+    "title": "Reactions",
+    "category": "widgets",
+    "icon": "smiley",
+    "description": "Capture lightweight feedback with emoji reactions.",
+    "keywords": [
+        "reactions",
+        "feedback",
+        "emoji"
+    ],
+    "attributes": {
+        "placement": {
+            "type": "string",
+            "default": "inline"
+        },
+        "postId": {
+            "type": "number",
+            "default": 0
+        }
+    },
+    "supports": {
+        "html": false
+    },
+    "editorScript": "file:../index.js",
+    "style": "your-share",
+    "editorStyle": "your-share",
+    "viewScript": "your-share"
+}

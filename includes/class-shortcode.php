@@ -30,56 +30,48 @@ class Shortcode
     {
         add_shortcode('your_share', [$this, 'handle_shortcode']);
         add_shortcode('waki_share', [$this, 'handle_shortcode']);
+        add_shortcode('share_suite', [$this, 'handle_suite_shortcode']);
+        add_shortcode('waki_share_suite', [$this, 'handle_suite_shortcode']);
         add_shortcode('share_follow', [$this, 'handle_follow_shortcode']);
         add_shortcode('waki_follow', [$this, 'handle_follow_shortcode']);
+        add_shortcode('share_reactions', [$this, 'handle_reactions_shortcode']);
+        add_shortcode('waki_reactions', [$this, 'handle_reactions_shortcode']);
     }
 
     public function handle_shortcode($atts, $content = '', string $tag = 'your_share'): string
     {
-        $options = $this->options->all();
-
         if (!is_array($atts)) {
             $atts = [];
         }
 
-        $atts = shortcode_atts([
-            'networks'     => '',
-            'labels'       => $options['share_labels'],
-            'style'        => $options['share_style'],
-            'size'         => $options['share_size'],
-            'align'        => $options['share_align'],
-            'brand'        => $options['share_brand_colors'] ? '1' : '0',
-            'utm_campaign' => '',
-            'url'          => '',
-            'title'        => '',
-        ], $atts, $tag);
-
-        $context = [
-            'placement' => 'inline',
-            'align'     => $atts['align'],
-        ];
-
-        return $this->renderer->render($context, $atts);
+        return $this->renderer->render_share_inline($atts);
     }
 
     public function handle_follow_shortcode($atts, $content = '', string $tag = 'share_follow'): string
     {
-        $options = $this->options->all();
-
         if (!is_array($atts)) {
             $atts = [];
         }
 
-        $atts = shortcode_atts([
-            'networks' => '',
-            'style'    => $options['share_style'],
-            'size'     => $options['share_size'],
-            'align'    => $options['share_align'],
-            'brand'    => $options['share_brand_colors'] ? '1' : '0',
-            'labels'   => 'show',
-        ], $atts, $tag);
-
         return $this->renderer->render_follow($atts);
+    }
+
+    public function handle_suite_shortcode($atts, $content = '', string $tag = 'share_suite'): string
+    {
+        if (!is_array($atts)) {
+            $atts = [];
+        }
+
+        return $this->renderer->render_share_suite($atts);
+    }
+
+    public function handle_reactions_shortcode($atts, $content = '', string $tag = 'share_reactions'): string
+    {
+        if (!is_array($atts)) {
+            $atts = [];
+        }
+
+        return $this->renderer->render_reactions($atts);
     }
 
     public function maybe_render_floating(): void
@@ -91,23 +83,14 @@ class Shortcode
         }
 
         $atts = [
-            'networks'     => '',
-            'labels'       => 'hide',
-            'style'        => $options['share_style'],
-            'size'         => 'sm',
-            'align'        => 'left',
-            'brand'        => $options['share_brand_colors'] ? '1' : '0',
-            'utm_campaign' => '',
-            'url'          => '',
-            'title'        => '',
+            'labels'           => 'hide',
+            'style'            => $options['share_style'],
+            'size'             => 'sm',
+            'brand'            => $options['share_brand_colors'] ? '1' : '0',
+            'sticky_position'  => $options['sticky_position'],
+            'sticky_breakpoint'=> intval($options['sticky_breakpoint']),
         ];
 
-        $context = [
-            'placement'  => 'floating',
-            'position'   => $options['sticky_position'],
-            'breakpoint' => intval($options['sticky_breakpoint']),
-        ];
-
-        echo $this->renderer->render($context, $atts); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        echo $this->renderer->render_share_floating($atts); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
     }
 }

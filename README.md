@@ -2,11 +2,37 @@
 
 Modern social sharing plugin featuring configurable layouts, floating share bars, follow buttons, and per-network UTM tagging.
 
+## Blocks
+
+### Share Suite
+
+The **Share Suite** block combines inline share buttons with optional follow links, reactions, and a floating toggle in a single layout. Use the inspector to:
+
+- Override networks, sizing, labels, colours, and UTM metadata.
+- Toggle follow buttons, emoji reactions, and the sticky share bar on/off per block.
+- Configure follow alignment and networks without leaving the editor.
+
+### Sticky Share Toggle
+
+Outputs the floating share bar with the configured theme defaults. Adjust its position, breakpoint, and button styling directly from the block inspector.
+
+### Follow Buttons
+
+Displays the profile links saved in **Settings → Your Share → Follow**. The block exposes controls for network order, alignment, labels, and appearance.
+
+### Reactions
+
+Renders the emoji reaction bar either inline or in floating mode. You can optionally target a specific post ID when embedding the block outside of the main loop.
+
+### Share Overlay
+
+Wrap any media block in the **Share Overlay** wrapper to mark it for share overlays. The block adds a `data-your-share-media="1"` attribute so the share script can attach pop-up menus without writing CSS selectors.
+
 ## Shortcodes
 
-### Share buttons
+### Inline share buttons (`[your_share]`)
 
-Use the `[your_share]` shortcode (alias `[waki_share]`) to output the configured share buttons. Attributes include:
+The `[your_share]` shortcode (alias `[waki_share]`) mirrors the Share Suite share controls and accepts:
 
 | Attribute | Values | Description |
 | --- | --- | --- |
@@ -14,16 +40,35 @@ Use the `[your_share]` shortcode (alias `[waki_share]`) to output the configured
 | `style` | `solid`, `outline`, `ghost` | Override button style. |
 | `size` | `sm`, `md`, `lg` | Override button size. |
 | `labels` | `auto`, `show`, `hide` | Control label visibility. |
+| `align` | `left`, `center`, `right`, `space-between` | Control alignment. |
 | `brand` | `1` or `0` | Enable/disable brand colours. |
 | `utm_campaign` | string | Override the default campaign value. |
 | `url` | URL | Share a specific URL. |
 | `title` | string | Override the share title. |
 
-### Follow buttons
+### Share suite (`[share_suite]`)
 
-Use the `[share_follow]` shortcode (alias `[waki_follow]`) to output follow buttons that link directly to your profiles. Supported networks are X, Instagram, Facebook Page, TikTok, YouTube, and LinkedIn.
+Combines share, follow, reactions, and the floating toggle. Attributes include:
 
-The shortcode accepts the following attributes:
+| Attribute | Values | Description |
+| --- | --- | --- |
+| `networks` | comma-separated slugs | Share button networks. |
+| `show_follow` | `1` or `0` | Include follow buttons. |
+| `show_reactions` | `1` or `0` | Include emoji reactions. |
+| `sticky_toggle` | `1` or `0` | Add the floating share bar. |
+| `follow_networks` | comma-separated slugs | Override follow networks. |
+| `follow_labels` | `show`, `hide`, `auto` | Follow label visibility. |
+| `follow_align` | `left`, `center`, `right`, `space-between` | Follow alignment. |
+| `reactions_placement` | `inline`, `sticky` | Reaction placement. |
+| `sticky_position` | `left`, `right` | Floating share position. |
+| `sticky_breakpoint` | integer | Minimum viewport for floating share. |
+| Other share attributes | Same as `[your_share]` | Styling, labels, UTM overrides. |
+
+Aliases: `[waki_share_suite]` and `[waki_share]`.
+
+### Follow buttons (`[share_follow]`)
+
+Outputs profile buttons (alias `[waki_follow]`):
 
 | Attribute | Values | Description |
 | --- | --- | --- |
@@ -35,6 +80,15 @@ The shortcode accepts the following attributes:
 | `labels` | `show`, `hide`, `auto` | Label visibility (default `show`). |
 
 Profiles without URLs are skipped automatically. Links open in a new tab with `rel="me noopener"` and do not trigger share popups.
+
+### Reactions (`[share_reactions]`)
+
+Embed the emoji reaction bar anywhere (alias `[waki_reactions]`). Attributes:
+
+| Attribute | Values | Description |
+| --- | --- | --- |
+| `placement` | `inline`, `sticky` | Where to render the bar. |
+| `post_id` | integer | Optional post ID override. |
 
 ## Admin settings
 

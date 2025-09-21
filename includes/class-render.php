@@ -53,6 +53,9 @@ class Render
 
     public function render(array $context, array $atts): string
     {
+        wp_enqueue_style('your-share');
+        wp_enqueue_script('your-share');
+
         $opts       = $this->options->all();
         $map        = $this->networks->all();
         $share_ctx  = $this->current_share_context($atts);
@@ -229,11 +232,14 @@ class Render
 
         $raw_selectors = $options['media_overlay_selectors'] ?? '';
         $selectors     = $this->normalize_selector_list($raw_selectors);
+        $selectors[]   = '[data-your-share-media]';
         $selectors     = apply_filters('your_share_media_overlay_selectors', $selectors, $options);
 
         $selectors = array_values(array_filter($selectors, static function ($selector) {
             return is_string($selector) && trim($selector) !== '';
         }));
+
+        $selectors = array_values(array_unique($selectors));
 
         if (empty($selectors)) {
             return;
@@ -312,8 +318,9 @@ class Render
 
     public function render_follow(array $atts): string
     {
-        $options  = $this->options->all();
-        $defaults = $this->options->defaults();
+        $atts      = $this->normalize_follow_attributes($atts);
+        $options   = $this->options->all();
+        $defaults  = $this->options->defaults();
         $map      = $this->networks->follow();
         $allowed  = array_keys($map);
 
@@ -325,11 +332,11 @@ class Render
 
         $profiles = $options['follow_profiles'] ?? [];
 
-        $style  = $atts['style'] ?? ($options['share_style'] ?? 'solid');
-        $size   = $atts['size'] ?? ($options['share_size'] ?? 'md');
-        $align  = $atts['align'] ?? ($options['share_align'] ?? 'left');
-        $labels = $atts['labels'] ?? 'show';
-        $brand  = isset($atts['brand']) ? (string) $atts['brand'] : ($options['share_brand_colors'] ? '1' : '0');
+        $style  = $atts['style'];
+        $size   = $atts['size'];
+        $align  = $atts['align'];
+        $labels = $atts['labels'];
+        $brand  = (string) $atts['brand'];
 
         $gap    = absint($options['share_gap'] ?? $defaults['share_gap']);
         $radius = absint($options['share_radius'] ?? $defaults['share_radius']);
@@ -356,6 +363,8 @@ class Render
         $style_inline = sprintf('--waki-gap:%dpx;--waki-radius:%dpx;', $gap, $radius);
 
         $has_links = false;
+
+        wp_enqueue_style('your-share');
 
         ob_start();
         ?>
@@ -405,6 +414,278 @@ class Render
         }
 
         return $html;
+    }
+
+    public function render_share_inline(array $atts = []): string
+    {
+        $share_atts = $this->normalize_share_attributes(
+            $this->filter_share_attributes($atts)
+        );
+
+        $context = [
+            'placement' => 'inline',
+            'align'     => $share_atts['align'],
+        ];
+
+        return $this->render($context, $share_atts);
+    }
+
+    public function render_share_floating(array $atts = []): string
+    {
+        $options        = $this->options->all();
+        $override_label = $this->extract_value($atts, ['sticky_labels', 'stickyLabels'], 'hide');
+
+        $share_atts = $this->normalize_share_attributes(
+            $this->filter_share_attributes($atts),
+            [
+                'labels' => $override_label !== null && $override_label !== '' ? $override_label : 'hide',
+            ]
+        );
+
+        $position = $this->extract_value($atts, ['sticky_position', 'stickyPosition', 'position']);
+        if (!is_string($position) || $position === '') {
+            $position = $options['sticky_position'] ?? 'left';
+        }
+
+        $breakpoint = $this->extract_value($atts, ['sticky_breakpoint', 'stickyBreakpoint', 'breakpoint']);
+        if ($breakpoint === null || $breakpoint === '') {
+            $breakpoint = intval($options['sticky_breakpoint'] ?? 1024);
+        } else {
+            $breakpoint = intval($breakpoint);
+        }
+
+        $context = [
+            'placement'  => 'floating',
+            'position'   => $position,
+            'breakpoint' => $breakpoint,
+        ];
+
+        return $this->render($context, $share_atts);
+    }
+
+    public function render_share_suite(array $atts = []): string
+    {
+        $flags = [
+            'share'     => $this->truthy($this->extract_value($atts, ['show_share', 'showShare']), true),
+            'follow'    => $this->truthy($this->extract_value($atts, ['show_follow', 'showFollow']), false),
+            'reactions' => $this->truthy($this->extract_value($atts, ['show_reactions', 'showReactions']), false),
+            'sticky'    => $this->truthy($this->extract_value($atts, ['sticky_toggle', 'stickyToggle']), false),
+        ];
+
+        $sections = [];
+        $share_atts = $this->filter_share_attributes($atts);
+
+        if ($flags['share']) {
+            $sections[] = $this->render_share_inline($share_atts);
+        }
+
+        if ($flags['sticky']) {
+            $sticky_atts               = $share_atts;
+            $sticky_atts['labels']     = $this->extract_value($atts, ['sticky_labels', 'stickyLabels'], 'hide');
+            $sticky_atts['position']   = $this->extract_value($atts, ['sticky_position', 'stickyPosition', 'position']);
+            $sticky_atts['breakpoint'] = $this->extract_value($atts, ['sticky_breakpoint', 'stickyBreakpoint', 'breakpoint']);
+
+            $sections[] = $this->render_share_floating($sticky_atts);
+        }
+
+        if ($flags['follow']) {
+            $follow_atts = $this->filter_follow_attributes($atts);
+
+            if (empty($follow_atts['networks']) && isset($share_atts['networks'])) {
+                $follow_atts['networks'] = $share_atts['networks'];
+            }
+
+            $sections[] = $this->render_follow($follow_atts);
+        }
+
+        if ($flags['reactions']) {
+            $sections[] = $this->render_reactions([
+                'placement' => $this->extract_value($atts, ['reactions_placement', 'reactionsPlacement', 'placement'], 'inline'),
+                'post_id'   => $this->extract_value($atts, ['post_id', 'postId']),
+            ]);
+        }
+
+        $sections = array_filter($sections);
+
+        if (empty($sections)) {
+            return '';
+        }
+
+        $markup = '<div class="waki-share-suite">' . implode('', $sections) . '</div>';
+
+        return (string) apply_filters('your_share_suite_markup', $markup, $sections, $atts);
+    }
+
+    public function render_reactions(array $atts = []): string
+    {
+        $placement = $this->extract_value($atts, ['placement', 'reactions_placement', 'reactionsPlacement'], 'inline');
+
+        if (!is_string($placement) || $placement === '') {
+            $placement = 'inline';
+        }
+
+        $placement = $placement === 'sticky' ? 'sticky' : 'inline';
+
+        $post_id = (int) $this->extract_value($atts, ['post_id', 'postId']);
+
+        return $this->reactions->render_block($placement, $post_id > 0 ? $post_id : null);
+    }
+
+    private function normalize_share_attributes(array $atts, array $overrides = []): array
+    {
+        $options = $this->options->all();
+
+        $defaults = [
+            'networks'     => '',
+            'labels'       => $options['share_labels'] ?? 'auto',
+            'style'        => $options['share_style'] ?? 'solid',
+            'size'         => $options['share_size'] ?? 'md',
+            'align'        => $options['share_align'] ?? 'left',
+            'brand'        => !empty($options['share_brand_colors']) ? '1' : '0',
+            'utm_campaign' => '',
+            'url'          => '',
+            'title'        => '',
+        ];
+
+        if (!is_array($atts)) {
+            $atts = [];
+        }
+
+        $defaults = array_merge($defaults, array_filter($overrides, static function ($value) {
+            return $value !== null;
+        }));
+
+        $atts = wp_parse_args($atts, $defaults);
+
+        $atts['brand']  = $this->truthy($atts['brand'], $defaults['brand'] === '1') ? '1' : '0';
+        $atts['labels'] = $atts['labels'] !== '' ? $atts['labels'] : $defaults['labels'];
+
+        if ($atts['align'] === '') {
+            $atts['align'] = $defaults['align'];
+        }
+
+        return $atts;
+    }
+
+    private function normalize_follow_attributes(array $atts): array
+    {
+        $options = $this->options->all();
+
+        $defaults = [
+            'networks' => '',
+            'style'    => $options['share_style'] ?? 'solid',
+            'size'     => $options['share_size'] ?? 'md',
+            'align'    => $options['share_align'] ?? 'left',
+            'brand'    => !empty($options['share_brand_colors']) ? '1' : '0',
+            'labels'   => 'show',
+        ];
+
+        if (!is_array($atts)) {
+            $atts = [];
+        }
+
+        $atts = wp_parse_args($atts, $defaults);
+
+        $atts['brand'] = $this->truthy($atts['brand'], $defaults['brand'] === '1') ? '1' : '0';
+
+        if ($atts['labels'] === '') {
+            $atts['labels'] = 'show';
+        }
+
+        if ($atts['align'] === '') {
+            $atts['align'] = $defaults['align'];
+        }
+
+        return $atts;
+    }
+
+    private function filter_share_attributes(array $atts): array
+    {
+        $map = [
+            'networks'     => ['networks', 'share_networks'],
+            'labels'       => ['labels', 'share_labels'],
+            'style'        => ['style', 'share_style'],
+            'size'         => ['size', 'share_size'],
+            'align'        => ['align', 'share_align'],
+            'brand'        => ['brand', 'share_brand'],
+            'utm_campaign' => ['utm_campaign', 'utmCampaign', 'share_utm'],
+            'url'          => ['url', 'shareUrl'],
+            'title'        => ['title', 'shareTitle'],
+        ];
+
+        return $this->filter_attributes_by_keys($atts, $map);
+    }
+
+    private function filter_follow_attributes(array $atts): array
+    {
+        $map = [
+            'networks' => ['follow_networks', 'followNetworks', 'networks'],
+            'style'    => ['follow_style', 'followStyle'],
+            'size'     => ['follow_size', 'followSize'],
+            'align'    => ['follow_align', 'followAlign'],
+            'brand'    => ['follow_brand', 'followBrand'],
+            'labels'   => ['follow_labels', 'followLabels'],
+        ];
+
+        return $this->filter_attributes_by_keys($atts, $map);
+    }
+
+    private function filter_attributes_by_keys(array $atts, array $map): array
+    {
+        $output = [];
+
+        foreach ($map as $target => $keys) {
+            foreach ($keys as $key) {
+                if (is_array($atts) && array_key_exists($key, $atts)) {
+                    $output[$target] = $atts[$key];
+                    break;
+                }
+            }
+        }
+
+        return $output;
+    }
+
+    private function extract_value($atts, array $keys, $default = null)
+    {
+        if (!is_array($atts)) {
+            return $default;
+        }
+
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $atts)) {
+                return $atts[$key];
+            }
+        }
+
+        return $default;
+    }
+
+    private function truthy($value, bool $default = false): bool
+    {
+        if ($value === null) {
+            return $default;
+        }
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return (int) $value === 1;
+        }
+
+        if (is_string($value)) {
+            $value = strtolower(trim($value));
+
+            if ($value === '') {
+                return $default;
+            }
+
+            return in_array($value, ['1', 'true', 'yes', 'on'], true);
+        }
+
+        return $default;
     }
 
     private function current_share_context(array $atts): array

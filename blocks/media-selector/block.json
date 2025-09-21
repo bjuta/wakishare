@@ -1,0 +1,35 @@
+{
+    "apiVersion": 3,
+    "name": "your-share/media-selector",
+    "title": "Share Overlay",
+    "category": "widgets",
+    "icon": "format-image",
+    "description": "Mark specific images or videos for overlay share controls.",
+    "keywords": [
+        "media",
+        "share",
+        "overlay"
+    ],
+    "attributes": {
+        "tagName": {
+            "type": "string",
+            "default": "figure"
+        },
+        "overlayLabel": {
+            "type": "string",
+            "default": ""
+        }
+    },
+    "supports": {
+        "html": false,
+        "anchor": true,
+        "align": [
+            "wide",
+            "full"
+        ]
+    },
+    "editorScript": "file:../index.js",
+    "style": "your-share",
+    "editorStyle": "your-share",
+    "viewScript": "your-share"
+}

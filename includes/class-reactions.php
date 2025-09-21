@@ -205,11 +205,7 @@ class Reactions
 
     public function render_inline(int $post_id): string
     {
-        if (!$this->is_enabled('inline')) {
-            return '';
-        }
-
-        return $this->render_markup($post_id, 'inline');
+        return $this->render_block('inline', $post_id);
     }
 
     public function render_sticky(): void
@@ -227,13 +223,44 @@ class Reactions
             return;
         }
 
-        $markup = $this->render_markup($post_id, 'sticky');
+        $markup = $this->render_block('sticky', $post_id);
 
         if ($markup === '') {
             return;
         }
 
         echo $markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    }
+
+    public function render_block(string $placement = 'inline', ?int $post_id = null): string
+    {
+        $placement = $placement === 'sticky' ? 'sticky' : 'inline';
+
+        if ($placement === 'inline' && !$this->is_enabled('inline')) {
+            return '';
+        }
+
+        if ($placement === 'sticky' && !$this->is_enabled('sticky')) {
+            return '';
+        }
+
+        if ($post_id === null || $post_id <= 0) {
+            $post = get_post();
+            if ($post instanceof \WP_Post) {
+                $post_id = (int) $post->ID;
+            } else {
+                $post_id = 0;
+            }
+        }
+
+        if ($post_id <= 0) {
+            return '';
+        }
+
+        wp_enqueue_style('your-share');
+        wp_enqueue_script('your-share');
+
+        return $this->render_markup($post_id, $placement);
     }
 
     public function current_user_reaction(int $post_id): string

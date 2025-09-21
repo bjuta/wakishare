@@ -1,0 +1,50 @@
+{
+    "apiVersion": 3,
+    "name": "your-share/follow-buttons",
+    "title": "Follow Buttons",
+    "category": "widgets",
+    "icon": "heart",
+    "description": "Output social profile buttons linked to configured follow URLs.",
+    "keywords": [
+        "follow",
+        "social",
+        "profiles"
+    ],
+    "attributes": {
+        "networks": {
+            "type": "string",
+            "default": ""
+        },
+        "style": {
+            "type": "string",
+            "default": ""
+        },
+        "size": {
+            "type": "string",
+            "default": ""
+        },
+        "align": {
+            "type": "string",
+            "default": ""
+        },
+        "brand": {
+            "type": "boolean",
+            "default": true
+        },
+        "labels": {
+            "type": "string",
+            "default": ""
+        }
+    },
+    "supports": {
+        "html": false,
+        "align": [
+            "wide",
+            "full"
+        ]
+    },
+    "editorScript": "file:../index.js",
+    "style": "your-share",
+    "editorStyle": "your-share",
+    "viewScript": "your-share"
+}
