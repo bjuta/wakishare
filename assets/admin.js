@@ -1,10 +1,23 @@
 (function(){
+  var adminConfig = window.yourShareAdmin || {};
+
   function qs(root, selector){
     return root ? root.querySelector(selector) : null;
   }
 
   function qsa(root, selector){
     return root ? Array.prototype.slice.call(root.querySelectorAll(selector)) : [];
+  }
+
+  function formatNumber(value){
+    var number = parseInt(value, 10);
+    if (!isFinite(number)){
+      number = 0;
+    }
+    if (typeof number.toLocaleString === 'function'){
+      return number.toLocaleString();
+    }
+    return String(number);
   }
 
   function init(){
@@ -18,6 +31,311 @@
     setupShortcodePreview(root);
     setupFollowShortcodePreview(root);
     setupUtmPreview(root);
+    setupAnalyticsReports(root);
+  }
+
+  function setupAnalyticsReports(root){
+    var container = qs(root, '[data-your-share-analytics]');
+    if (!container){
+      return;
+    }
+
+    var chartCanvas = qs(container, '[data-your-share-analytics-chart]');
+    var emptyMessage = qs(container, '[data-your-share-analytics-empty]');
+    var summaryShare = qs(container, '[data-your-share-analytics-total="share"]');
+    var summaryReaction = qs(container, '[data-your-share-analytics-total="reaction"]');
+    var updatedEl = qs(container, '[data-your-share-analytics-updated]');
+    var tools = qs(container, '[data-your-share-analytics-tools]');
+    var notice = tools ? qs(tools, '.your-share-analytics__notice') : null;
+    var rangeButtons = qsa(container, '[data-your-share-analytics-ranges] [data-range]');
+    var topLists = {
+      posts: qs(container, '[data-your-share-analytics-top="posts"]'),
+      networks: qs(container, '[data-your-share-analytics-top="networks"]'),
+      devices: qs(container, '[data-your-share-analytics-top="devices"]')
+    };
+    var topEmpty = {
+      posts: qs(container, '[data-your-share-analytics-top-empty="posts"]'),
+      networks: qs(container, '[data-your-share-analytics-top-empty="networks"]'),
+      devices: qs(container, '[data-your-share-analytics-top-empty="devices"]')
+    };
+
+    if (!chartCanvas || typeof window.Chart !== 'function'){
+      if (emptyMessage){
+        emptyMessage.hidden = false;
+        emptyMessage.textContent = adminConfig.analytics && adminConfig.analytics.i18n ? (adminConfig.analytics.i18n.error || 'Unable to load analytics data.') : 'Unable to load analytics data.';
+      }
+      return;
+    }
+
+    var state = {
+      data: null,
+      chart: null,
+      range: '7'
+    };
+
+    function restRoot(){
+      var rest = adminConfig.analytics && adminConfig.analytics.rest ? adminConfig.analytics.rest.root : '';
+      if (!rest){
+        return '';
+      }
+      if (rest.charAt(rest.length - 1) === '/'){
+        rest = rest.slice(0, -1);
+      }
+      return rest;
+    }
+
+    function setSummary(rangeData){
+      if (!rangeData){
+        if (summaryShare){ summaryShare.textContent = '0'; }
+        if (summaryReaction){ summaryReaction.textContent = '0'; }
+        if (emptyMessage){ emptyMessage.hidden = false; }
+        return;
+      }
+
+      if (summaryShare){
+        summaryShare.textContent = formatNumber(rangeData.totals && rangeData.totals.share ? rangeData.totals.share : 0);
+      }
+
+      if (summaryReaction){
+        summaryReaction.textContent = formatNumber(rangeData.totals && rangeData.totals.reaction ? rangeData.totals.reaction : 0);
+      }
+
+      if (emptyMessage){
+        var hasData = rangeData.totals && (rangeData.totals.share || rangeData.totals.reaction);
+        emptyMessage.hidden = !!hasData;
+      }
+    }
+
+    function updateUpdated(timestamp){
+      if (!updatedEl){
+        return;
+      }
+      if (!timestamp){
+        updatedEl.textContent = '';
+        return;
+      }
+      var text = timestamp;
+      try {
+        var normalized = timestamp.replace(' ', 'T');
+        var parsed = new Date(normalized);
+        if (!isNaN(parsed.getTime()) && typeof parsed.toLocaleString === 'function'){
+          text = parsed.toLocaleString();
+        }
+      } catch (error) {
+        text = timestamp;
+      }
+      if (adminConfig.analytics && adminConfig.analytics.i18n && adminConfig.analytics.i18n.updated){
+        updatedEl.textContent = adminConfig.analytics.i18n.updated.replace('%s', text);
+      } else {
+        updatedEl.textContent = text;
+      }
+    }
+
+    function formatNetwork(value){
+      if (!value){
+        return '';
+      }
+      return value.replace(/[-_]/g, ' ').replace(/\b\w/g, function(chr){ return chr.toUpperCase(); });
+    }
+
+    function populateList(type, items){
+      var list = topLists[type];
+      var empty = topEmpty[type];
+      if (!list){
+        return;
+      }
+      list.innerHTML = '';
+      if (!items || !items.length){
+        if (empty){
+          empty.hidden = false;
+        }
+        return;
+      }
+      if (empty){
+        empty.hidden = true;
+      }
+      items.forEach(function(item){
+        var li = document.createElement('li');
+        var text = '';
+        if (type === 'posts'){
+          text = item.title || '';
+          if (item.link){
+            var link = document.createElement('a');
+            link.href = item.link;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = text;
+            li.appendChild(link);
+          } else {
+            li.textContent = text;
+          }
+        } else if (type === 'networks'){
+          text = formatNetwork(item.network || '');
+          li.textContent = text;
+        } else if (type === 'devices'){
+          text = item.label || formatNetwork(item.device || '');
+          li.textContent = text;
+        }
+        var value = document.createElement('span');
+        value.className = 'your-share-analytics__metric';
+        value.textContent = formatNumber(item.total || 0);
+        li.appendChild(value);
+        list.appendChild(li);
+      });
+    }
+
+    function datasetConfig(rangeData){
+      var palette = {
+        share: '#2563eb',
+        reaction: '#f97316'
+      };
+      var shareLabel = adminConfig.analytics && adminConfig.analytics.i18n ? (adminConfig.analytics.i18n.share || 'Shares') : 'Shares';
+      var reactionLabel = adminConfig.analytics && adminConfig.analytics.i18n ? (adminConfig.analytics.i18n.reaction || 'Reactions') : 'Reactions';
+      return {
+        labels: rangeData.labels || [],
+        datasets: [
+          {
+            label: shareLabel,
+            data: rangeData.share || [],
+            borderColor: palette.share,
+            backgroundColor: 'rgba(37, 99, 235, 0.15)',
+            tension: 0.35,
+            fill: true,
+            pointRadius: 2
+          },
+          {
+            label: reactionLabel,
+            data: rangeData.reaction || [],
+            borderColor: palette.reaction,
+            backgroundColor: 'rgba(249, 115, 22, 0.15)',
+            tension: 0.35,
+            fill: true,
+            pointRadius: 2
+          }
+        ]
+      };
+    }
+
+    function renderChart(rangeData){
+      if (!rangeData){
+        return;
+      }
+      var config = datasetConfig(rangeData);
+      if (!state.chart){
+        state.chart = new Chart(chartCanvas.getContext('2d'), {
+          type: 'line',
+          data: config,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  precision: 0
+                }
+              }
+            },
+            plugins: {
+              legend: {
+                display: true
+              }
+            }
+          }
+        });
+      } else {
+        state.chart.data = config;
+        state.chart.update();
+      }
+    }
+
+    function activateRange(range){
+      if (!state.data || !state.data.series || !state.data.series[range]){
+        return;
+      }
+      state.range = range;
+      rangeButtons.forEach(function(button){
+        var value = button.getAttribute('data-range');
+        button.classList.toggle('is-active', value === range);
+      });
+      var rangeData = state.data.series[range];
+      renderChart(rangeData);
+      setSummary(rangeData);
+    }
+
+    function applyTopLists(data){
+      populateList('posts', data.top && data.top.posts ? data.top.posts : []);
+      populateList('networks', data.top && data.top.networks ? data.top.networks : []);
+      populateList('devices', data.top && data.top.devices ? data.top.devices : []);
+    }
+
+    function setToolsEnabled(enabled){
+      if (!tools){
+        return;
+      }
+      qsa(tools, 'button').forEach(function(button){
+        button.disabled = !enabled;
+      });
+      if (notice){
+        notice.style.display = enabled ? 'none' : '';
+      }
+    }
+
+    function handleResponse(data){
+      state.data = data;
+      updateUpdated(data.generated_at || '');
+      applyTopLists(data);
+      var enabled = !!data.enabled;
+      setToolsEnabled(enabled);
+      if (!enabled){
+        setSummary(null);
+        if (notice){
+          notice.style.display = '';
+        }
+        return;
+      }
+      activateRange(state.range);
+    }
+
+    function loadData(){
+      var rootUrl = restRoot();
+      if (!rootUrl){
+        if (emptyMessage){
+          emptyMessage.hidden = false;
+        }
+        return;
+      }
+      var headers = {};
+      if (adminConfig.analytics && adminConfig.analytics.rest && adminConfig.analytics.rest.nonce){
+        headers['X-WP-Nonce'] = adminConfig.analytics.rest.nonce;
+      }
+      fetch(rootUrl + '/analytics/report', {
+        credentials: 'same-origin',
+        headers: headers
+      }).then(function(response){
+        if (!response.ok){
+          throw new Error('Failed');
+        }
+        return response.json();
+      }).then(function(body){
+        handleResponse(body || {});
+      }).catch(function(){
+        if (emptyMessage){
+          emptyMessage.hidden = false;
+          emptyMessage.textContent = adminConfig.analytics && adminConfig.analytics.i18n ? (adminConfig.analytics.i18n.error || 'Unable to load analytics data.') : 'Unable to load analytics data.';
+        }
+      });
+    }
+
+    rangeButtons.forEach(function(button){
+      button.addEventListener('click', function(){
+        var range = button.getAttribute('data-range');
+        activateRange(range);
+      });
+    });
+
+    setToolsEnabled(adminConfig.analytics ? !!adminConfig.analytics.enabled : true);
+    loadData();
   }
 
   function setupTabs(root){

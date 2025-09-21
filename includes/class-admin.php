@@ -17,6 +17,9 @@ class Admin
     /** @var Reactions */
     private $reactions;
 
+    /** @var Analytics */
+    private $analytics;
+
     /** @var string */
     private $slug;
 
@@ -26,11 +29,12 @@ class Admin
     /** @var array|null */
     private $cached_values = null;
 
-    public function __construct(Options $options, Networks $networks, Reactions $reactions, string $slug, string $text_domain)
+    public function __construct(Options $options, Networks $networks, Reactions $reactions, Analytics $analytics, string $slug, string $text_domain)
     {
         $this->options     = $options;
         $this->networks    = $networks;
         $this->reactions   = $reactions;
+        $this->analytics   = $analytics;
         $this->slug        = $slug;
         $this->text_domain = $text_domain;
     }
@@ -112,6 +116,11 @@ class Admin
             <p class="description your-share-settings__intro">
                 <?php esc_html_e('Tune the defaults that power your inline, floating, and smart share experiences.', $this->text_domain); ?>
             </p>
+            <?php if ($this->analytics->consume_reset_notice()) : ?>
+                <div class="notice notice-success is-dismissible">
+                    <p><?php esc_html_e('Analytics events have been cleared.', $this->text_domain); ?></p>
+                </div>
+            <?php endif; ?>
             <?php settings_errors($this->options->key()); ?>
             <h2 class="nav-tab-wrapper" role="tablist">
                 <?php foreach ($tabs as $key => $label) :
@@ -488,6 +497,23 @@ class Admin
     private function register_analytics_settings(): void
     {
         $page = $this->page_id('analytics');
+
+        add_settings_section(
+            'your_share_analytics_reports',
+            __('Performance', $this->text_domain),
+            function (): void {
+                echo '<p>' . esc_html__('Monitor how visitors engage with share and reaction surfaces over time.', $this->text_domain) . '</p>';
+            },
+            $page
+        );
+
+        add_settings_field(
+            'analytics_reports',
+            __('Engagement overview', $this->text_domain),
+            [$this, 'field_analytics_reports'],
+            $page,
+            'your_share_analytics_reports'
+        );
 
         add_settings_section(
             'your_share_analytics_utm',
@@ -1089,6 +1115,75 @@ class Admin
         <?php
     }
 
+    public function field_analytics_reports(): void
+    {
+        $values   = $this->values();
+        $enabled  = !empty($values['analytics_events']);
+        $export_label = __('Export CSV', $this->text_domain);
+        $reset_label  = __('Reset analytics data', $this->text_domain);
+        $reset_warning = __('Reset all analytics events? This action cannot be undone.', $this->text_domain);
+        ?>
+        <div class="your-share-analytics" data-your-share-analytics data-enabled="<?php echo esc_attr($enabled ? '1' : '0'); ?>">
+            <div class="your-share-analytics__chart">
+                <div class="your-share-analytics__toolbar">
+                    <div class="your-share-analytics__ranges" data-your-share-analytics-ranges>
+                        <button type="button" class="button button-secondary is-active" data-range="7"><?php esc_html_e('7 days', $this->text_domain); ?></button>
+                        <button type="button" class="button button-secondary" data-range="30"><?php esc_html_e('30 days', $this->text_domain); ?></button>
+                        <button type="button" class="button button-secondary" data-range="90"><?php esc_html_e('90 days', $this->text_domain); ?></button>
+                    </div>
+                    <div class="your-share-analytics__summary" data-your-share-analytics-summary>
+                        <div>
+                            <span class="your-share-analytics__summary-label"><?php esc_html_e('Shares', $this->text_domain); ?></span>
+                            <span data-your-share-analytics-total="share">0</span>
+                        </div>
+                        <div>
+                            <span class="your-share-analytics__summary-label"><?php esc_html_e('Reactions', $this->text_domain); ?></span>
+                            <span data-your-share-analytics-total="reaction">0</span>
+                        </div>
+                        <div class="your-share-analytics__updated" data-your-share-analytics-updated></div>
+                    </div>
+                </div>
+                <div class="your-share-analytics__canvas">
+                    <canvas width="640" height="320" data-your-share-analytics-chart aria-label="<?php esc_attr_e('Analytics event trend', $this->text_domain); ?>" role="img"></canvas>
+                    <p class="description" data-your-share-analytics-empty hidden><?php esc_html_e('No events recorded for the selected range yet.', $this->text_domain); ?></p>
+                </div>
+            </div>
+            <div class="your-share-analytics__lists">
+                <div class="your-share-analytics__card">
+                    <h4><?php esc_html_e('Top posts (30 days)', $this->text_domain); ?></h4>
+                    <ol data-your-share-analytics-top="posts"></ol>
+                    <p class="description" data-your-share-analytics-top-empty="posts" hidden><?php esc_html_e('No posts have recorded events in this window.', $this->text_domain); ?></p>
+                </div>
+                <div class="your-share-analytics__card">
+                    <h4><?php esc_html_e('Top networks (30 days)', $this->text_domain); ?></h4>
+                    <ol data-your-share-analytics-top="networks"></ol>
+                    <p class="description" data-your-share-analytics-top-empty="networks" hidden><?php esc_html_e('Events have not been attributed to share networks yet.', $this->text_domain); ?></p>
+                </div>
+                <div class="your-share-analytics__card">
+                    <h4><?php esc_html_e('Top devices (30 days)', $this->text_domain); ?></h4>
+                    <ol data-your-share-analytics-top="devices"></ol>
+                    <p class="description" data-your-share-analytics-top-empty="devices" hidden><?php esc_html_e('Device insights will appear after visitors interact with share buttons.', $this->text_domain); ?></p>
+                </div>
+            </div>
+            <div class="your-share-analytics__tools" data-your-share-analytics-tools>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                    <input type="hidden" name="action" value="your_share_export_events">
+                    <?php wp_nonce_field('your_share_export_events', 'your_share_export_events_nonce'); ?>
+                    <button type="submit" class="button"><?php echo esc_html($export_label); ?></button>
+                </form>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                    <input type="hidden" name="action" value="your_share_reset_events">
+                    <?php wp_nonce_field('your_share_reset_events', 'your_share_reset_events_nonce'); ?>
+                    <button type="submit" class="button button-secondary" data-your-share-analytics-reset onclick="return confirm('<?php echo esc_js($reset_warning); ?>');"><?php echo esc_html($reset_label); ?></button>
+                </form>
+                <?php if (!$enabled) : ?>
+                    <p class="description your-share-analytics__notice"><?php esc_html_e('Enable event storage below to populate analytics and unlock exports.', $this->text_domain); ?></p>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php
+    }
+
     public function field_analytics_toggles(): void
     {
         $values = $this->values();
@@ -1096,15 +1191,15 @@ class Admin
         <div class="your-share-field-stack">
             <label class="your-share-toggle">
                 <input type="checkbox" name="<?php echo esc_attr($this->name('analytics_events')); ?>" value="1" <?php checked($values['analytics_events'], 1); ?>>
-                <?php esc_html_e('Dispatch share events to the browser dataLayer', $this->text_domain); ?>
+                <?php esc_html_e('Store share and reaction events in the analytics log', $this->text_domain); ?>
             </label>
             <label class="your-share-toggle">
                 <input type="checkbox" name="<?php echo esc_attr($this->name('analytics_ga4')); ?>" value="1" <?php checked($values['analytics_ga4'], 1); ?>>
-                <?php esc_html_e('Emit Google Analytics 4 compatible events', $this->text_domain); ?>
+                <?php esc_html_e('Forward interactions to Google Analytics 4 when configured', $this->text_domain); ?>
             </label>
             <label class="your-share-toggle">
                 <input type="checkbox" name="<?php echo esc_attr($this->name('analytics_console')); ?>" value="1" <?php checked($values['analytics_console'], 1); ?>>
-                <?php esc_html_e('Log debug output to the browser console', $this->text_domain); ?>
+                <?php esc_html_e('Log analytics payloads to the browser console for debugging', $this->text_domain); ?>
             </label>
         </div>
         <?php

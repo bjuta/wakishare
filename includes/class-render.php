@@ -129,6 +129,7 @@ class Render
         $base  = $share_ctx['url'];
 
         $counts_state = $this->prepare_counts_state($opts, $networks, $share_ctx);
+        $post_id      = $share_ctx['post'] instanceof \WP_Post ? (int) $share_ctx['post']->ID : 0;
 
         if ($counts_state['enabled']) {
             $classes[] = 'waki-has-counts';
@@ -142,6 +143,7 @@ class Render
             'data-your-share-placement'      => $placement,
             'data-your-share-counts'         => $counts_state['enabled'] ? '1' : '',
             'data-your-share-post'           => $counts_state['post'],
+            'data-your-share-post-id'        => $post_id > 0 ? (string) $post_id : '',
             'data-your-share-networks'       => $counts_state['network_list'],
             'data-your-share-count-url'      => $counts_state['url'],
             'data-your-share-count-ttl'      => $counts_state['ttl'],

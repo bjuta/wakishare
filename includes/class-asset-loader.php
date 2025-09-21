@@ -83,6 +83,20 @@ class Asset_Loader
                 'refreshInterval' => max(0, (int) ($options['counts_refresh_interval'] ?? 0)),
             ]
         );
+
+        wp_localize_script(
+            $script_handle,
+            'yourShareAnalytics',
+            [
+                'store'   => !empty($options['analytics_events']),
+                'console' => !empty($options['analytics_console']),
+                'ga4'     => !empty($options['analytics_ga4']),
+                'rest'    => [
+                    'root'  => trailingslashit(rest_url('your-share/v1')),
+                    'nonce' => wp_create_nonce('wp_rest'),
+                ],
+            ]
+        );
     }
 
     public function enqueue_admin(string $hook): void
@@ -90,6 +104,14 @@ class Asset_Loader
         if ($hook !== 'settings_page_' . $this->admin_slug) {
             return;
         }
+
+        wp_register_script(
+            'your-share-chart',
+            'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
+            [],
+            '4.4.0',
+            true
+        );
 
         wp_enqueue_style(
             'your-share-admin',
@@ -101,9 +123,32 @@ class Asset_Loader
         wp_enqueue_script(
             'your-share-admin',
             $this->plugin_url . 'assets/admin.js',
-            [],
+            ['your-share-chart'],
             $this->version,
             true
+        );
+
+        $options = $this->options->all();
+
+        wp_localize_script(
+            'your-share-admin',
+            'yourShareAdmin',
+            [
+                'analytics' => [
+                    'enabled' => !empty($options['analytics_events']),
+                    'rest'    => [
+                        'root'  => trailingslashit(rest_url('your-share/v1')),
+                        'nonce' => wp_create_nonce('wp_rest'),
+                    ],
+                    'i18n'    => [
+                        'disabled' => __('Event logging is disabled. Enable tracking to populate analytics.', $this->text_domain),
+                        'error'    => __('Unable to load analytics data. Please try again.', $this->text_domain),
+                        'updated'  => __('Last updated %s', $this->text_domain),
+                        'share'    => __('Shares', $this->text_domain),
+                        'reaction' => __('Reactions', $this->text_domain),
+                    ],
+                ],
+            ]
         );
     }
 }

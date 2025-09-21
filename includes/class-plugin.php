@@ -36,6 +36,7 @@ class Plugin
         $this->container->get(Admin::class)->register_hooks();
         $this->container->get(Reactions::class)->register_hooks();
         $this->container->get(Rest::class)->register_hooks();
+        $this->container->get(Analytics::class)->register_hooks();
         $this->container->get(Shortcode::class)->register_hooks();
 
         do_action('your_share_plugin_booted', $this);
@@ -81,6 +82,10 @@ class Plugin
             return new Rest($c->get(Reactions::class), self::TEXT_DOMAIN);
         });
 
+        $this->container->set(Analytics::class, function (Container $c): Analytics {
+            return new Analytics($c->get(Options::class), self::TEXT_DOMAIN, self::SLUG);
+        });
+
         $this->container->set(Render::class, function (Container $c): Render {
             return new Render(
                 $c->get(Options::class),
@@ -98,7 +103,14 @@ class Plugin
         });
 
         $this->container->set(Admin::class, function (Container $c): Admin {
-            return new Admin($c->get(Options::class), $c->get(Networks::class), $c->get(Reactions::class), self::SLUG, self::TEXT_DOMAIN);
+            return new Admin(
+                $c->get(Options::class),
+                $c->get(Networks::class),
+                $c->get(Reactions::class),
+                $c->get(Analytics::class),
+                self::SLUG,
+                self::TEXT_DOMAIN
+            );
         });
 
         $this->container->set(Shortcode::class, function (Container $c): Shortcode {
