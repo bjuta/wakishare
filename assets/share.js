@@ -894,12 +894,67 @@
 
   function writeCookie(name, value, ttl){
     var expires = '';
-    if (ttl){
+    if (typeof ttl === 'number'){
       var date = new Date();
-      date.setTime(date.getTime() + (ttl * 1000));
+      if (ttl <= 0){
+        date.setTime(0);
+      } else {
+        date.setTime(date.getTime() + (ttl * 1000));
+      }
       expires = '; expires=' + date.toUTCString();
     }
-    document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/; SameSite=Lax';
+    document.cookie = name + '=' + encodeURIComponent(value || '') + expires + '; path=/; SameSite=Lax';
+  }
+
+  function normalizeReactions(value){
+    if (!value){
+      return [];
+    }
+    var list = [];
+    if (Array.isArray(value)){
+      list = value.slice();
+    } else if (typeof value === 'string'){
+      var trimmed = value.trim();
+      if (!trimmed){
+        list = [];
+      } else if (trimmed.charAt(0) === '[' || trimmed.charAt(0) === '{'){
+        try {
+          var parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)){
+            list = parsed;
+          } else if (parsed && typeof parsed === 'object'){
+            list = Object.keys(parsed).filter(function(key){ return !!parsed[key]; });
+          } else {
+            list = trimmed.split(',');
+          }
+        } catch (error) {
+          list = trimmed.split(',');
+        }
+      } else {
+        list = trimmed.split(',');
+      }
+    } else if (typeof value === 'object'){
+      Object.keys(value).forEach(function(key){
+        if (value[key]){
+          list.push(key);
+        }
+      });
+    }
+
+    var seen = {};
+    return list.map(function(item){
+      var slug = String(item || '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      return slug;
+    }).filter(function(slug){
+      if (!slug){
+        return false;
+      }
+      if (seen[slug]){
+        return false;
+      }
+      seen[slug] = true;
+      return true;
+    });
   }
 
   function readReactionStore(){
@@ -914,7 +969,9 @@
         if (raw){
           var parsed = JSON.parse(raw);
           if (parsed && typeof parsed === 'object'){
-            store = parsed;
+            Object.keys(parsed).forEach(function(key){
+              store[key] = normalizeReactions(parsed[key]);
+            });
           }
         }
       }
@@ -926,56 +983,77 @@
   }
 
   function writeReactionStore(store){
-    reactionStore = store;
+    var output = {};
+    Object.keys(store || {}).forEach(function(key){
+      var normalized = normalizeReactions(store[key]);
+      if (normalized.length){
+        output[key] = normalized;
+      }
+    });
+    reactionStore = output;
     var config = getThrottleConfig();
     try {
       if (window.localStorage){
-        window.localStorage.setItem(config.storageKey, JSON.stringify(store));
+        window.localStorage.setItem(config.storageKey, JSON.stringify(output));
       }
     } catch (error) {
       // ignore storage errors
     }
   }
 
-  function getStoredReaction(postId){
+  function getStoredReactions(postId){
     if (!postId){
-      return '';
+      return [];
     }
     var key = String(postId);
     var store = readReactionStore();
     if (store && store[key]){
-      return store[key];
+      return normalizeReactions(store[key]);
     }
     var config = getThrottleConfig();
     var cookie = readCookie(config.cookiePrefix + key);
-    return cookie || '';
+    return normalizeReactions(cookie);
   }
 
-  function setStoredReaction(postId, reaction){
-    if (!postId || !reaction){
+  function setStoredReactions(postId, reactions){
+    if (!postId){
       return;
     }
     var key = String(postId);
     var store = readReactionStore();
-    store[key] = reaction;
+    var normalized = normalizeReactions(reactions);
+    if (normalized.length){
+      store[key] = normalized;
+    } else {
+      delete store[key];
+    }
     writeReactionStore(store);
     var config = getThrottleConfig();
-    writeCookie(config.cookiePrefix + key, reaction, config.cookieTtl);
+    if (normalized.length){
+      writeCookie(config.cookiePrefix + key, JSON.stringify(normalized), config.cookieTtl);
+    } else {
+      writeCookie(config.cookiePrefix + key, '', -1);
+    }
   }
 
-  function highlightReaction(bar, reaction){
+  function highlightReactions(bar, reactions){
     if (!bar){
       return;
     }
+    var active = normalizeReactions(reactions);
+    var map = {};
+    active.forEach(function(slug){
+      map[slug] = true;
+    });
     var buttons = bar.querySelectorAll('.waki-reaction');
     Array.prototype.forEach.call(buttons, function(button){
       var slug = button.getAttribute('data-reaction');
-      var isActive = !!reaction && slug === reaction;
+      var isActive = !!map[slug];
       button.classList.toggle('is-active', isActive);
       button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
-    if (reaction){
-      bar.setAttribute('data-user', reaction);
+    if (active.length){
+      bar.setAttribute('data-user', active.join(','));
     } else {
       bar.removeAttribute('data-user');
     }
@@ -1041,7 +1119,7 @@
     });
   }
 
-  function sendReaction(postId, reaction){
+  function sendReaction(postId, reaction, intent){
     if (typeof window.fetch !== 'function'){
       return Promise.reject(new Error('Fetch unavailable'));
     }
@@ -1051,11 +1129,15 @@
     }
     var headers = getRestHeaders();
     headers['Content-Type'] = 'application/json';
+    var payload = { post_id: postId, reaction: reaction };
+    if (intent){
+      payload.intent = intent;
+    }
     return fetch(url, {
       method: 'POST',
       credentials: 'same-origin',
       headers: headers,
-      body: JSON.stringify({ post_id: postId, reaction: reaction })
+      body: JSON.stringify(payload)
     }).then(function(response){
       if (!response.ok){
         return response.json().then(function(body){
@@ -1079,9 +1161,12 @@
     }
 
     var supportsFetch = typeof window.fetch === 'function';
-    var stored = getStoredReaction(postId) || bar.getAttribute('data-user') || '';
-    if (stored){
-      highlightReaction(bar, stored);
+    var initial = normalizeReactions(bar.getAttribute('data-user'));
+    if (!initial.length){
+      initial = getStoredReactions(postId);
+    }
+    if (initial.length){
+      highlightReactions(bar, initial);
     }
 
     if (supportsFetch){
@@ -1092,9 +1177,14 @@
         if (payload.counts){
           updateReactionCounts(bar, payload.counts);
         }
-        if (payload.user_reaction){
-          highlightReaction(bar, payload.user_reaction);
-          setStoredReaction(postId, payload.user_reaction);
+        if (payload.user_reactions){
+          var reactions = normalizeReactions(payload.user_reactions);
+          highlightReactions(bar, reactions);
+          setStoredReactions(postId, reactions);
+        } else if (payload.user_reaction){
+          var fallback = normalizeReactions([payload.user_reaction]);
+          highlightReactions(bar, fallback);
+          setStoredReactions(postId, fallback);
         }
       }).catch(function(){
         // ignore network errors
@@ -1112,32 +1202,51 @@
       if (!slug){
         return;
       }
-      var current = getStoredReaction(postId);
-      if (current){
-        highlightReaction(bar, current);
+      if (pending){
         return;
       }
       if (!supportsFetch){
         return;
       }
-      if (pending){
-        return;
+      var current = getStoredReactions(postId);
+      var isActive = current.indexOf(slug) !== -1;
+      var intent = isActive ? 'remove' : 'add';
+      var optimistic = current.slice();
+      if (isActive){
+        optimistic = optimistic.filter(function(item){ return item !== slug; });
+      } else {
+        optimistic.push(slug);
       }
+      highlightReactions(bar, optimistic);
       pending = true;
-      sendReaction(postId, slug).then(function(body){
+      sendReaction(postId, slug, intent).then(function(body){
         pending = false;
         if (body && body.counts){
           updateReactionCounts(bar, body.counts);
         }
-        setStoredReaction(postId, slug);
-        highlightReaction(bar, slug);
-        trackReaction(bar, postId, slug);
+        var final = optimistic;
+        if (body && body.user_reactions){
+          final = normalizeReactions(body.user_reactions);
+        }
+        setStoredReactions(postId, final);
+        highlightReactions(bar, final);
+        if (body && body.status === 'added'){
+          trackReaction(bar, postId, slug);
+        }
       }).catch(function(error){
         pending = false;
-        if (error && error.data && error.data.user_reaction){
-          var locked = error.data.user_reaction;
-          setStoredReaction(postId, locked);
-          highlightReaction(bar, locked);
+        var fallback = getStoredReactions(postId);
+        if (error && error.data && error.data.user_reactions){
+          fallback = normalizeReactions(error.data.user_reactions);
+          setStoredReactions(postId, fallback);
+        }
+        highlightReactions(bar, fallback);
+        if (error && error.data && error.data.user_reaction && !error.data.user_reactions){
+          var locked = normalizeReactions([error.data.user_reaction]);
+          if (locked.length){
+            setStoredReactions(postId, locked);
+            highlightReactions(bar, locked);
+          }
         }
       });
     });
@@ -1197,6 +1306,26 @@
     }
 
     if (wrapper.classList.contains('waki-follow')){
+      return;
+    }
+
+    if (button.hasAttribute('data-share-toggle')){
+      event.preventDefault();
+      var expanded = button.getAttribute('aria-expanded') === 'true';
+      var targetId = button.getAttribute('aria-controls') || '';
+      var panel = targetId ? document.getElementById(targetId) : wrapper.querySelector('[data-your-share-extra]');
+      expanded = !expanded;
+      button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      button.classList.toggle('is-active', expanded);
+      if (panel){
+        if (expanded){
+          panel.removeAttribute('hidden');
+          panel.setAttribute('aria-hidden', 'false');
+        } else {
+          panel.setAttribute('hidden', 'hidden');
+          panel.setAttribute('aria-hidden', 'true');
+        }
+      }
       return;
     }
 

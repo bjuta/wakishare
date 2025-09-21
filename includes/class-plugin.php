@@ -75,8 +75,13 @@ class Plugin
             return new UTM($c->get(Options::class));
         });
 
-        $this->container->set(Reactions::class, function (Container $c): Reactions {
-            return new Reactions($c->get(Options::class), self::TEXT_DOMAIN);
+        $this->container->set(Reactions::class, function (Container $c) use ($plugin_dir, $plugin_url): Reactions {
+            return new Reactions(
+                $c->get(Options::class),
+                self::TEXT_DOMAIN,
+                $plugin_dir . 'assets/emoji',
+                $plugin_url . 'assets/emoji'
+            );
         });
 
         $this->container->set(Rest::class, function (Container $c): Rest {

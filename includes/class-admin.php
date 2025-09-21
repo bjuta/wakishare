@@ -1290,18 +1290,87 @@ class Admin
 
     public function field_reactions_emojis(): void
     {
-        $values  = $this->values();
-        $enabled = $values['reactions_enabled'] ?? [];
-        $emojis  = $this->reactions->emojis();
+        $values       = $this->values();
+        $enabled_map  = $values['reactions_enabled'] ?? [];
+        $emojis       = $this->reactions->emojis();
+        $search_id    = 'your-share-reaction-search-' . wp_generate_uuid4();
+        $enabled_slugs = [];
+
+        if (is_array($enabled_map)) {
+            foreach ($enabled_map as $slug => $flag) {
+                if (!empty($flag)) {
+                    $enabled_slugs[] = sanitize_key((string) $slug);
+                }
+            }
+        }
+
+        $enabled_lookup = array_fill_keys($enabled_slugs, true);
+
+        $keys = array_keys($emojis);
+        usort(
+            $keys,
+            static function ($a, $b) use ($emojis, $enabled_lookup) {
+                $a_active = !empty($enabled_lookup[$a]);
+                $b_active = !empty($enabled_lookup[$b]);
+
+                if ($a_active !== $b_active) {
+                    return $a_active ? -1 : 1;
+                }
+
+                $a_label = isset($emojis[$a]['label']) ? $emojis[$a]['label'] : $a;
+                $b_label = isset($emojis[$b]['label']) ? $emojis[$b]['label'] : $b;
+
+                return strcasecmp((string) $a_label, (string) $b_label);
+            }
+        );
         ?>
-        <div class="your-share-field-grid your-share-reaction-grid">
-            <?php foreach ($emojis as $slug => $emoji) :
-                $is_enabled = !empty($enabled[$slug]);
+        <div class="your-share-reaction-picker" data-your-share-reaction-picker>
+            <label for="<?php echo esc_attr($search_id); ?>" class="your-share-reaction-picker__label"><?php esc_html_e('Search reactions', $this->text_domain); ?></label>
+            <input
+                type="search"
+                id="<?php echo esc_attr($search_id); ?>"
+                class="your-share-reaction-search"
+                placeholder="<?php esc_attr_e('Filter by emoji or name…', $this->text_domain); ?>"
+                data-your-share-reaction-search
+            >
+        </div>
+        <div class="your-share-field-grid your-share-reaction-grid" data-your-share-reaction-list>
+            <?php foreach ($keys as $slug) :
+                if (!isset($emojis[$slug])) {
+                    continue;
+                }
+                $emoji      = $emojis[$slug];
+                $label      = $emoji['label'] ?? $slug;
+                $symbol     = $emoji['emoji'] ?? '';
+                $image_url  = isset($emoji['image_url']) ? (string) $emoji['image_url'] : '';
+                $image_w    = isset($emoji['image_width']) ? (int) $emoji['image_width'] : 0;
+                $image_h    = isset($emoji['image_height']) ? (int) $emoji['image_height'] : 0;
+                $symbol_class = 'your-share-reaction-symbol' . ($image_url !== '' ? ' has-image' : '');
+                $is_enabled = !empty($enabled_lookup[$slug]);
+                $filter_key = function_exists('mb_strtolower') ? mb_strtolower((string) $label) : strtolower((string) $label);
                 ?>
-                <label class="your-share-reaction-option">
+                <label
+                    class="your-share-reaction-option<?php echo $is_enabled ? ' is-active' : ''; ?>"
+                    data-reaction-slug="<?php echo esc_attr($slug); ?>"
+                    data-reaction-label="<?php echo esc_attr(wp_strip_all_tags(wp_specialchars_decode($filter_key, ENT_QUOTES))); ?>"
+                >
                     <input type="checkbox" name="<?php echo esc_attr($this->name('reactions_enabled') . '[' . $slug . ']'); ?>" value="1" <?php checked($is_enabled, true); ?>>
-                    <span class="your-share-reaction-symbol" aria-hidden="true"><?php echo esc_html($emoji['emoji']); ?></span>
-                    <span class="your-share-reaction-text"><?php echo esc_html($emoji['label']); ?></span>
+                    <span class="<?php echo esc_attr($symbol_class); ?>" aria-hidden="true">
+                        <?php if ($image_url !== '') : ?>
+                            <img
+                                src="<?php echo esc_url($image_url); ?>"
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
+                                <?php if ($image_w > 0) : ?>width="<?php echo esc_attr((string) $image_w); ?>"<?php endif; ?>
+                                <?php if ($image_h > 0) : ?>height="<?php echo esc_attr((string) $image_h); ?>"<?php endif; ?>
+                                class="your-share-reaction-symbol-img"
+                            >
+                        <?php else : ?>
+                            <?php echo esc_html($symbol); ?>
+                        <?php endif; ?>
+                    </span>
+                    <span class="your-share-reaction-text"><?php echo esc_html($label); ?></span>
                 </label>
             <?php endforeach; ?>
         </div>

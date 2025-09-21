@@ -81,6 +81,12 @@ class Render
             $networks[] = 'native';
         }
 
+        foreach (array_keys($map) as $slug) {
+            if (!in_array($slug, $networks, true)) {
+                $networks[] = $slug;
+            }
+        }
+
         $classes = [
             'waki-share',
             'waki-size-' . sanitize_html_class($atts['size'] ?? 'md'),
@@ -138,6 +144,76 @@ class Render
             $classes[] = 'waki-has-counts';
         }
 
+        $max_visible     = 5;
+        $visible_buttons = [];
+        $hidden_buttons  = [];
+        $button_index    = 0;
+
+        foreach ($networks as $network) {
+            if (!isset($map[$network])) {
+                continue;
+            }
+
+            [$label] = $map[$network];
+
+            if ($network === 'copy' || $network === 'native') {
+                $href = '#';
+            } else {
+                $utm_url = $this->utm->append($base, $network, $share_ctx['post'], $atts);
+                $href    = $this->build_share_url($network, $utm_url, $title);
+            }
+
+            $count_value = $counts_state['networks'][$network]['total'] ?? 0;
+            $attr        = [
+                'class'      => 'waki-btn',
+                'data-net'   => $network,
+                'aria-label' => sprintf(__('Share on %s', $this->text_domain), $label),
+                'role'       => 'link',
+            ];
+
+            if ($network !== 'copy' && $network !== 'native') {
+                $attr['href']   = $href;
+                $attr['target'] = '_blank';
+                $attr['rel']    = 'noopener noreferrer';
+            } else {
+                $attr['href'] = '#';
+            }
+
+            $attr = apply_filters('your_share_button_attributes', $attr, $network, $context, $atts, $share_ctx);
+
+            ob_start();
+            ?>
+            <a<?php foreach ($attr as $key => $value) { if ($value === '' || $value === null) { continue; } echo ' ' . esc_attr($key) . '="' . esc_attr((string) $value) . '"'; } ?>>
+                <span class="waki-icon" aria-hidden="true">
+                    <?php echo $this->icons->svg($network); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                </span>
+                <span class="waki-label"><?php echo esc_html($label); ?></span>
+                <?php if ($counts_state['enabled'] && !empty($opts['counts_show_badges'])) : ?>
+                    <span class="waki-count" data-your-share-count="<?php echo esc_attr($network); ?>" data-value="<?php echo esc_attr((string) $count_value); ?>"><?php echo esc_html($this->format_count($count_value)); ?></span>
+                <?php endif; ?>
+            </a>
+            <?php
+            $button_markup = trim((string) ob_get_clean());
+
+            if ($button_markup === '') {
+                continue;
+            }
+
+            if ($button_index < $max_visible) {
+                $visible_buttons[] = $button_markup;
+            } else {
+                $hidden_buttons[] = $button_markup;
+            }
+
+            $button_index++;
+        }
+
+        $more_id = '';
+
+        if (!empty($hidden_buttons)) {
+            $more_id = uniqid('waki-share-more-');
+        }
+
         ob_start();
         ?>
         <?php $data_attrs = $this->format_attributes([
@@ -154,52 +230,37 @@ class Render
         <div class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr($style_inline); ?>"<?php echo $data_attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
             <?php if ($counts_state['enabled'] && !empty($opts['counts_show_total'])) : ?>
                 <div class="waki-share-total" data-your-share-total>
-                    <span class="waki-total-label"><?php esc_html_e('Total shares', $this->text_domain); ?></span>
+                    <span class="waki-total-label"><?php esc_html_e('Shares', $this->text_domain); ?></span>
                     <span class="waki-total-value" data-your-share-total-value data-value="<?php echo esc_attr((string) $counts_state['total']); ?>"><?php echo esc_html($this->format_count($counts_state['total'])); ?></span>
                 </div>
             <?php endif; ?>
-            <?php foreach ($networks as $network) :
-                if (!isset($map[$network])) {
-                    continue;
-                }
-
-                [$label] = $map[$network];
-
-                if ($network === 'copy' || $network === 'native') {
-                    $href = '#';
-                } else {
-                    $utm_url = $this->utm->append($base, $network, $share_ctx['post'], $atts);
-                    $href    = $this->build_share_url($network, $utm_url, $title);
-                }
-
-                $count_value = $counts_state['networks'][$network]['total'] ?? 0;
-                $attr = [
-                    'class'      => 'waki-btn',
-                    'data-net'   => esc_attr($network),
-                    'aria-label' => esc_attr(sprintf(__('Share on %s', $this->text_domain), $label)),
-                    'role'       => 'link',
-                ];
-
-                if ($network !== 'copy' && $network !== 'native') {
-                    $attr['href']   = esc_url($href);
-                    $attr['target'] = '_blank';
-                    $attr['rel']    = 'noopener noreferrer';
-                } else {
-                    $attr['href'] = '#';
-                }
-
-                $attr = apply_filters('your_share_button_attributes', $attr, $network, $context, $atts, $share_ctx);
-                ?>
-                <a <?php foreach ($attr as $key => $value) { echo esc_attr($key) . '="' . esc_attr($value) . '" '; } ?>>
-                    <span class="waki-icon" aria-hidden="true">
-                        <?php echo $this->icons->svg($network); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                    </span>
-                    <span class="waki-label"><?php echo esc_html($label); ?></span>
-                    <?php if ($counts_state['enabled'] && !empty($opts['counts_show_badges'])) : ?>
-                        <span class="waki-count" data-your-share-count="<?php echo esc_attr($network); ?>" data-value="<?php echo esc_attr((string) $count_value); ?>"><?php echo esc_html($this->format_count($count_value)); ?></span>
-                    <?php endif; ?>
-                </a>
-            <?php endforeach; ?>
+            <div class="waki-share-buttons" data-your-share-buttons>
+                <?php foreach ($visible_buttons as $button_markup) :
+                    echo $button_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                endforeach; ?>
+                <?php if (!empty($hidden_buttons)) : ?>
+                    <button
+                        type="button"
+                        class="waki-btn waki-btn--toggle"
+                        data-net="more"
+                        data-share-toggle="more"
+                        aria-expanded="false"
+                        <?php if ($more_id !== '') : ?>aria-controls="<?php echo esc_attr($more_id); ?>"<?php endif; ?>
+                    >
+                        <span class="waki-icon" aria-hidden="true">
+                            <?php echo $this->icons->svg('share-toggle'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        </span>
+                        <span class="waki-label"><?php esc_html_e('More options', $this->text_domain); ?></span>
+                    </button>
+                <?php endif; ?>
+            </div>
+            <?php if (!empty($hidden_buttons)) : ?>
+                <div class="waki-share-extra" data-your-share-extra<?php echo $more_id !== '' ? ' id="' . esc_attr($more_id) . '"' : ''; ?> hidden aria-hidden="true">
+                    <?php foreach ($hidden_buttons as $button_markup) :
+                        echo $button_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    endforeach; ?>
+                </div>
+            <?php endif; ?>
         </div>
         <?php
         if ($placement === 'inline') {

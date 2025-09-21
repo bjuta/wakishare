@@ -28,10 +28,40 @@
 
     setupTabs(root);
     setupNetworkPicker(root);
+    setupReactionPicker(root);
     setupShortcodePreview(root);
     setupFollowShortcodePreview(root);
     setupUtmPreview(root);
     setupAnalyticsReports(root);
+  }
+
+  function setupReactionPicker(root){
+    var container = qs(root, '[data-your-share-reaction-picker]');
+    var list = qs(root, '[data-your-share-reaction-list]');
+    if (!container || !list){
+      return;
+    }
+
+    var search = qs(container, '[data-your-share-reaction-search]');
+    if (!search){
+      return;
+    }
+
+    var options = qsa(list, '[data-reaction-slug]');
+
+    function filter(){
+      var term = search.value ? search.value.toLowerCase().trim() : '';
+      options.forEach(function(option){
+        var label = option.getAttribute('data-reaction-label') || '';
+        var slug = option.getAttribute('data-reaction-slug') || '';
+        var match = !term || label.indexOf(term) !== -1 || slug.indexOf(term) !== -1;
+        option.style.display = match ? '' : 'none';
+      });
+    }
+
+    search.addEventListener('input', filter);
+    search.addEventListener('keyup', filter);
+    filter();
   }
 
   function setupAnalyticsReports(root){

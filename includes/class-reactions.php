@@ -20,10 +20,26 @@ class Reactions
     /** @var string */
     private $text_domain;
 
-    public function __construct(Options $options, string $text_domain)
+    /** @var string */
+    private $emoji_dir;
+
+    /** @var string */
+    private $emoji_url;
+
+    /** @var array<string, array>|null */
+    private $emoji_cache = null;
+
+    public function __construct(Options $options, string $text_domain, string $emoji_dir, string $emoji_url)
     {
         $this->options     = $options;
         $this->text_domain = $text_domain;
+        $this->emoji_dir   = rtrim($emoji_dir, '/\\') . DIRECTORY_SEPARATOR;
+
+        if (function_exists('trailingslashit')) {
+            $this->emoji_url = trailingslashit($emoji_url);
+        } else {
+            $this->emoji_url = rtrim($emoji_url, '/\\') . '/';
+        }
     }
 
     public function register_hooks(): void
@@ -49,28 +65,19 @@ class Reactions
 
     public function emojis(): array
     {
-        return [
-            'like' => [
-                'emoji' => '👍',
-                'label' => __('Like', $this->text_domain),
-            ],
-            'love' => [
-                'emoji' => '❤️',
-                'label' => __('Love', $this->text_domain),
-            ],
-            'celebrate' => [
-                'emoji' => '🎉',
-                'label' => __('Celebrate', $this->text_domain),
-            ],
-            'insightful' => [
-                'emoji' => '🤔',
-                'label' => __('Insightful', $this->text_domain),
-            ],
-            'support' => [
-                'emoji' => '🙌',
-                'label' => __('Support', $this->text_domain),
-            ],
-        ];
+        if ($this->emoji_cache !== null) {
+            return $this->emoji_cache;
+        }
+
+        $library = Emoji_Library::all();
+
+        foreach ($library as $slug => $info) {
+            $library[$slug] = $this->prepare_emoji_asset($info);
+        }
+
+        $this->emoji_cache = $library;
+
+        return $this->emoji_cache;
     }
 
     public function active_emojis(): array
@@ -79,9 +86,27 @@ class Reactions
         $library = $this->emojis();
         $active  = [];
 
-        foreach ($library as $slug => $data) {
-            if (!empty($enabled[$slug])) {
-                $active[$slug] = $data;
+        if (!is_array($enabled)) {
+            $enabled = [];
+        }
+
+        foreach ($enabled as $slug => $flag) {
+            $slug = sanitize_key((string) $slug);
+
+            if ($slug === '' || empty($flag)) {
+                continue;
+            }
+
+            if (isset($library[$slug])) {
+                $active[$slug] = $library[$slug];
+            }
+        }
+
+        if (empty($active)) {
+            foreach (Emoji_Library::defaults() as $slug) {
+                if (isset($library[$slug])) {
+                    $active[$slug] = $library[$slug];
+                }
             }
         }
 
@@ -110,11 +135,19 @@ class Reactions
 
     public function is_valid_slug(string $slug): bool
     {
-        return isset($this->emojis()[$slug]);
+        $slug = sanitize_key($slug);
+
+        return $slug !== '' && isset($this->emojis()[$slug]);
     }
 
     public function is_active_slug(string $slug): bool
     {
+        $slug = sanitize_key($slug);
+
+        if ($slug === '') {
+            return false;
+        }
+
         $active = $this->active_emojis();
 
         return isset($active[$slug]);
@@ -178,6 +211,39 @@ class Reactions
                     $reaction,
                     $now,
                     $now
+                )
+            );
+        }
+
+        return $this->get_counts($post_id);
+    }
+
+    public function decrement(int $post_id, string $reaction): array
+    {
+        if ($post_id <= 0 || !$this->is_active_slug($reaction)) {
+            return $this->get_counts($post_id);
+        }
+
+        global $wpdb;
+
+        if ($wpdb instanceof wpdb) {
+            $table = $this->table_name($wpdb);
+            $now   = current_time('mysql');
+
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$table} SET total = CASE WHEN total > 0 THEN total - 1 ELSE 0 END, updated_at = %s WHERE post_id = %d AND reaction = %s",
+                    $now,
+                    $post_id,
+                    $reaction
+                )
+            );
+
+            $wpdb->query(
+                $wpdb->prepare(
+                    "DELETE FROM {$table} WHERE post_id = %d AND reaction = %s AND total <= 0",
+                    $post_id,
+                    $reaction
                 )
             );
         }
@@ -265,23 +331,32 @@ class Reactions
 
     public function current_user_reaction(int $post_id): string
     {
+        $reactions = $this->current_user_reactions($post_id);
+
+        return $reactions[0] ?? '';
+    }
+
+    /**
+     * Retrieve the reactions stored for the current visitor.
+     *
+     * @return string[]
+     */
+    public function current_user_reactions(int $post_id): array
+    {
         if ($post_id <= 0) {
-            return '';
+            return [];
         }
 
         $name  = $this->cookie_name($post_id);
-        $value = isset($_COOKIE[$name]) ? sanitize_key(wp_unslash($_COOKIE[$name])) : '';
+        $value = isset($_COOKIE[$name]) ? wp_unslash($_COOKIE[$name]) : '';
 
-        if (!$this->is_valid_slug($value)) {
-            return '';
-        }
-
-        return $value;
+        return $this->normalize_reaction_list($value);
     }
 
     public function is_throttled(int $post_id): bool
     {
-        return $this->current_user_reaction($post_id) !== '';
+        // Users can now react with multiple emojis, so throttling is disabled.
+        return false;
     }
 
     public function mark_reacted(int $post_id, string $reaction): void
@@ -290,15 +365,41 @@ class Reactions
             return;
         }
 
-        $ttl     = $this->cookie_lifetime();
+        $current = $this->current_user_reactions($post_id);
+
+        if (!in_array($reaction, $current, true)) {
+            $current[] = $reaction;
+        }
+
+        $this->store_user_reactions($post_id, $current);
+    }
+
+    public function store_user_reactions(int $post_id, array $reactions): void
+    {
+        if ($post_id <= 0) {
+            return;
+        }
+
+        $sanitized = $this->normalize_reaction_list($reactions);
+
         $name    = $this->cookie_name($post_id);
-        $expires = time() + $ttl;
         $secure  = is_ssl();
         $path    = defined('COOKIEPATH') ? COOKIEPATH : '/';
         $domain  = defined('COOKIE_DOMAIN') ? COOKIE_DOMAIN : '';
+        $ttl     = $this->cookie_lifetime();
 
-        setcookie($name, $reaction, $expires, $path, $domain, $secure, true);
-        $_COOKIE[$name] = $reaction;
+        if (empty($sanitized)) {
+            setcookie($name, '', time() - 3600, $path, $domain, $secure, true);
+            unset($_COOKIE[$name]);
+
+            return;
+        }
+
+        $value   = wp_json_encode($sanitized);
+        $expires = time() + $ttl;
+
+        setcookie($name, $value, $expires, $path, $domain, $secure, true);
+        $_COOKIE[$name] = $value;
     }
 
     public function cookie_name(int $post_id): string
@@ -332,7 +433,7 @@ class Reactions
         $sticky_radius = absint($options['sticky_radius'] ?? $defaults['sticky_radius']);
         $style     = '';
         $classes   = ['waki-reactions'];
-        $user_slug = $this->current_user_reaction($post_id);
+        $user_reactions = $this->current_user_reactions($post_id);
 
         if ($placement === 'sticky') {
             $classes[] = 'waki-reactions-floating';
@@ -355,8 +456,8 @@ class Reactions
             'style'                     => $style,
         ];
 
-        if ($user_slug !== '') {
-            $attributes['data-user'] = $user_slug;
+        if (!empty($user_reactions)) {
+            $attributes['data-user'] = implode(',', $user_reactions);
         }
 
         $attributes = $this->format_attributes($attributes);
@@ -366,10 +467,14 @@ class Reactions
         ?>
         <div<?php echo $attributes; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
             <?php foreach ($active as $slug => $data) :
-                $label      = $data['label'];
-                $emoji      = $data['emoji'];
+                $label      = $data['label'] ?? $slug;
+                $emoji      = $data['emoji'] ?? '';
+                $image_url  = isset($data['image_url']) ? (string) $data['image_url'] : '';
+                $image_w    = isset($data['image_width']) ? (int) $data['image_width'] : 0;
+                $image_h    = isset($data['image_height']) ? (int) $data['image_height'] : 0;
+                $emoji_class = 'waki-reaction-emoji' . ($image_url !== '' ? ' has-image' : '');
                 $count      = $counts[$slug] ?? 0;
-                $is_current = ($user_slug === $slug);
+                $is_current = in_array($slug, $user_reactions, true);
                 ?>
                 <button
                     type="button"
@@ -378,7 +483,21 @@ class Reactions
                     aria-pressed="<?php echo $is_current ? 'true' : 'false'; ?>"
                     aria-label="<?php echo esc_attr(sprintf(__('React with %s', $this->text_domain), $label)); ?>"
                 >
-                    <span class="waki-reaction-emoji" aria-hidden="true"><?php echo esc_html($emoji); ?></span>
+                    <span class="<?php echo esc_attr($emoji_class); ?>" aria-hidden="true">
+                        <?php if ($image_url !== '') : ?>
+                            <img
+                                src="<?php echo esc_url($image_url); ?>"
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
+                                <?php if ($image_w > 0) : ?>width="<?php echo esc_attr((string) $image_w); ?>"<?php endif; ?>
+                                <?php if ($image_h > 0) : ?>height="<?php echo esc_attr((string) $image_h); ?>"<?php endif; ?>
+                                class="waki-reaction-emoji-img"
+                            >
+                        <?php else : ?>
+                            <?php echo esc_html($emoji); ?>
+                        <?php endif; ?>
+                    </span>
                     <span class="waki-reaction-label"><?php echo esc_html($label); ?></span>
                     <span class="waki-reaction-count" data-your-share-reaction-count><?php echo esc_html((string) $count); ?></span>
                 </button>
@@ -390,17 +509,85 @@ class Reactions
         return (string) apply_filters('your_share_reactions_markup', $markup, $post_id, $placement, $active, $counts);
     }
 
+    /**
+     * Normalise a list of reactions coming from cookies, storage, or user input.
+     *
+     * @param mixed $value Raw reaction list.
+     *
+     * @return string[]
+     */
+    private function normalize_reaction_list($value): array
+    {
+        $library = $this->emojis();
+        $output  = [];
+
+        if (is_string($value) && $value !== '') {
+            $decoded = json_decode($value, true);
+
+            if (is_array($decoded)) {
+                $value = $decoded;
+            }
+        }
+
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
+            $value = [];
+        }
+
+        foreach ($value as $key => $item) {
+            $slug = is_int($key) ? (string) $item : (string) $key;
+            $slug = sanitize_key($slug);
+
+            if ($slug === '' || !isset($library[$slug])) {
+                continue;
+            }
+
+            $enabled = true;
+
+            if (is_bool($item) || is_int($item)) {
+                $enabled = !empty($item);
+            }
+
+            if (!$enabled) {
+                continue;
+            }
+
+            if (!in_array($slug, $output, true)) {
+                $output[] = $slug;
+            }
+        }
+
+        return $output;
+    }
+
     private function script_settings(): array
     {
         $active = $this->active_emojis();
         $data   = [];
 
         foreach ($active as $slug => $info) {
-            $data[] = [
+            $item = [
                 'slug'  => $slug,
-                'emoji' => $info['emoji'],
-                'label' => $info['label'],
+                'emoji' => $info['emoji'] ?? '',
+                'label' => $info['label'] ?? $slug,
             ];
+
+            if (!empty($info['image_url'])) {
+                $item['image'] = $info['image_url'];
+
+                if (!empty($info['image_width'])) {
+                    $item['width'] = (int) $info['image_width'];
+                }
+
+                if (!empty($info['image_height'])) {
+                    $item['height'] = (int) $info['image_height'];
+                }
+            }
+
+            $data[] = $item;
         }
 
         return [
@@ -419,6 +606,84 @@ class Reactions
                 'cookieTtl'    => $this->cookie_lifetime(),
             ],
         ];
+    }
+
+    private function prepare_emoji_asset(array $emoji): array
+    {
+        if (empty($emoji['image'])) {
+            return $emoji;
+        }
+
+        $image = (string) $emoji['image'];
+
+        if (isset($emoji['image_width'])) {
+            $emoji['image_width'] = max(0, (int) $emoji['image_width']);
+        }
+
+        if (isset($emoji['image_height'])) {
+            $emoji['image_height'] = max(0, (int) $emoji['image_height']);
+        }
+
+        $is_data_uri = strpos($image, 'data:') === 0;
+        $is_absolute = preg_match('#^(https?:)?//#', $image) === 1;
+
+        if ($is_data_uri || $is_absolute) {
+            $emoji['image'] = $image;
+            $emoji['image_url'] = $image;
+
+            $needs_width  = empty($emoji['image_width']);
+            $needs_height = empty($emoji['image_height']);
+
+            if ($is_data_uri && ($needs_width || $needs_height)) {
+                $comma = strpos($image, ',');
+
+                if ($comma !== false) {
+                    $binary = base64_decode(substr($image, $comma + 1));
+
+                    if ($binary !== false) {
+                        $size = @getimagesizefromstring($binary);
+
+                        if (is_array($size)) {
+                            if ($needs_width) {
+                                $emoji['image_width'] = (int) $size[0];
+                            }
+
+                            if ($needs_height) {
+                                $emoji['image_height'] = (int) $size[1];
+                            }
+                        }
+                    }
+                }
+            }
+
+            return $emoji;
+        }
+
+        $relative = ltrim($image, '/');
+        $emoji['image'] = $relative;
+        $emoji['image_url'] = $this->emoji_url . str_replace("\\", "/", $relative);
+
+        $path = $this->emoji_dir . str_replace(['/', "\\"], DIRECTORY_SEPARATOR, $relative);
+
+        if (!empty($emoji['image_width']) && !empty($emoji['image_height'])) {
+            return $emoji;
+        }
+
+        if (is_readable($path)) {
+            $size = getimagesize($path);
+
+            if (is_array($size)) {
+                if (empty($emoji['image_width'])) {
+                    $emoji['image_width'] = (int) $size[0];
+                }
+
+                if (empty($emoji['image_height'])) {
+                    $emoji['image_height'] = (int) $size[1];
+                }
+            }
+        }
+
+        return $emoji;
     }
 
     private function table_name(wpdb $wpdb): string
