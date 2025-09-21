@@ -20,10 +20,14 @@ class Reactions
     /** @var string */
     private $text_domain;
 
-    public function __construct(Options $options, string $text_domain)
+    /** @var string */
+    private $plugin_file;
+
+    public function __construct(Options $options, string $text_domain, string $plugin_file)
     {
         $this->options     = $options;
         $this->text_domain = $text_domain;
+        $this->plugin_file = $plugin_file;
     }
 
     public function register_hooks(): void
@@ -439,10 +443,12 @@ class Reactions
         ?>
         <div<?php echo $attributes; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
             <?php foreach ($active as $slug => $data) :
-                $label      = $data['label'];
-                $emoji      = $data['emoji'];
-                $count      = $counts[$slug] ?? 0;
-                $is_current = in_array($slug, $user_reactions, true);
+                $label        = $data['label'];
+                $emoji        = $data['emoji'];
+                $image_url    = $this->emoji_image_url($data);
+                $count        = $counts[$slug] ?? 0;
+                $is_current   = in_array($slug, $user_reactions, true);
+                $emoji_classes = 'waki-reaction-emoji' . ($image_url !== '' ? ' is-image' : '');
                 ?>
                 <button
                     type="button"
@@ -451,7 +457,13 @@ class Reactions
                     aria-pressed="<?php echo $is_current ? 'true' : 'false'; ?>"
                     aria-label="<?php echo esc_attr(sprintf(__('React with %s', $this->text_domain), $label)); ?>"
                 >
-                    <span class="waki-reaction-emoji" aria-hidden="true"><?php echo esc_html($emoji); ?></span>
+                    <span class="<?php echo esc_attr($emoji_classes); ?>" aria-hidden="true">
+                        <?php if ($image_url !== '') : ?>
+                            <img src="<?php echo esc_url($image_url); ?>" alt="" role="presentation">
+                        <?php else : ?>
+                            <?php echo esc_html($emoji); ?>
+                        <?php endif; ?>
+                    </span>
                     <span class="waki-reaction-label"><?php echo esc_html($label); ?></span>
                     <span class="waki-reaction-count" data-your-share-reaction-count><?php echo esc_html((string) $count); ?></span>
                 </button>
@@ -523,11 +535,19 @@ class Reactions
         $data   = [];
 
         foreach ($active as $slug => $info) {
-            $data[] = [
+            $row = [
                 'slug'  => $slug,
                 'emoji' => $info['emoji'],
                 'label' => $info['label'],
             ];
+
+            $image_url = $this->emoji_image_url($info);
+
+            if ($image_url !== '') {
+                $row['image'] = $image_url;
+            }
+
+            $data[] = $row;
         }
 
         return [
@@ -546,6 +566,38 @@ class Reactions
                 'cookieTtl'    => $this->cookie_lifetime(),
             ],
         ];
+    }
+
+    public function emoji_image_url(array $emoji): string
+    {
+        if (!isset($emoji['image'])) {
+            return '';
+        }
+
+        $image = trim((string) $emoji['image']);
+
+        if ($image === '') {
+            return '';
+        }
+
+        if (filter_var($image, FILTER_VALIDATE_URL)) {
+            return esc_url_raw($image);
+        }
+
+        $image = ltrim($image, '\\/');
+
+        if ($image === '') {
+            return '';
+        }
+
+        $plugin_dir = plugin_dir_path($this->plugin_file);
+        $path       = wp_normalize_path($plugin_dir . $image);
+
+        if (!file_exists($path)) {
+            return '';
+        }
+
+        return esc_url_raw(plugins_url($image, $this->plugin_file));
     }
 
     private function table_name(wpdb $wpdb): string

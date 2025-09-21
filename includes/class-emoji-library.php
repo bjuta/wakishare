@@ -8,11 +8,13 @@ if (!defined('ABSPATH')) {
 
 class Emoji_Library
 {
-    /** @var array<string, array{emoji: string, label: string}>|null */
+    /** @var array<string, array{emoji: string, label: string, image?: string}>|null */
     private static $cache = null;
 
     /**
      * Retrieve the complete emoji dataset bundled with the plugin.
+     *
+     * @return array<string, array{emoji: string, label: string, image?: string}>
      */
     public static function all(): array
     {
@@ -49,6 +51,15 @@ class Emoji_Library
 
             $emoji = isset($info['emoji']) ? (string) $info['emoji'] : '';
             $label = isset($info['label']) ? (string) $info['label'] : '';
+            $image = '';
+
+            if (isset($info['image'])) {
+                $image = trim((string) $info['image']);
+                if ($image !== '') {
+                    $image = sanitize_text_field($image);
+                    $image = wp_normalize_path(ltrim($image, "\\/"));
+                }
+            }
 
             if ($emoji === '') {
                 continue;
@@ -62,6 +73,10 @@ class Emoji_Library
                 'emoji' => $emoji,
                 'label' => $label,
             ];
+
+            if ($image !== '') {
+                $normalized[$slug]['image'] = $image;
+            }
         }
 
         self::$cache = $normalized;
