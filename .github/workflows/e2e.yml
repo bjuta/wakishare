@@ -1,0 +1,52 @@
+name: E2E (Admin Save Redirect)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install @wordpress/env
+        run: npm i -g @wordpress/env
+
+      - name: Start wp-env
+        run: wp-env start
+      - name: Create admin user & activate plugin
+        run: |
+          wp-env run cli "wp plugin activate waki-share"
+          wp-env run cli "wp user create admin admin@example.com --role=administrator --user_pass=pass"
+
+      - name: Install Playwright
+        run: |
+          npm ci || true
+          npx playwright install --with-deps
+
+      - name: Run E2E tests
+        env:
+          WP_BASE_URL: http://localhost:8888
+          WP_ADMIN_USER: admin
+          WP_ADMIN_PASS: pass
+        run: npx playwright test --reporter=list
+
+      - name: Collect logs & traces
+        if: always()
+        run: |
+          mkdir -p artifacts
+          cp -R ./playwright-report artifacts/ || true
+          cp -R ./test-results artifacts/ || true
+          wp-env run cli "bash -lc 'cat wp-content/debug.log || true'" > artifacts/wp_debug.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-artifacts
+          path: artifacts
