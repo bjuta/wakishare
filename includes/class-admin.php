@@ -44,6 +44,7 @@ class Admin
         add_action('admin_menu', [$this, 'register_menu']);
         add_action('admin_init', [$this, 'register_settings']);
         add_filter('redirect_post_location', [$this, 'preserve_tab'], 10, 2);
+        add_filter('wp_redirect', [$this, 'fix_settings_redirect'], 10, 2);
         add_action('load-settings_page_' . $this->slug, [$this, 'register_help_tabs']);
     }
 
@@ -168,9 +169,6 @@ class Admin
                 if (!empty($current_tab)) {
                     $referer_value = add_query_arg('tab', $current_tab, $referer_value);
                 }
-
-                $referer_base  = wp_make_link_relative($referer_base);
-                $referer_value = wp_make_link_relative($referer_value);
                 ?>
                 <input
                     type="hidden"
@@ -206,6 +204,37 @@ class Admin
         $sidebar .= '<p><code>[share_reactions]</code> &mdash; ' . esc_html__('Emoji reactions.', $this->text_domain) . '</p>';
 
         $screen->set_help_sidebar($sidebar);
+    }
+
+    /**
+     * Ensure settings saves redirect back to this plugin's screen even when referrers are stripped.
+     */
+    public function fix_settings_redirect(string $location, int $status): string
+    {
+        if (empty($_POST['option_page']) || $_POST['option_page'] !== $this->options->key()) {
+            return $location;
+        }
+
+        $target = add_query_arg(
+            [
+                'page'              => $this->slug,
+                'settings-updated'  => 'true',
+            ],
+            admin_url('options-general.php')
+        );
+
+        $posted_options = $_POST[$this->options->key()] ?? [];
+
+        if (is_array($posted_options) && !empty($posted_options['current_tab'])) {
+            $tab  = sanitize_key(wp_unslash($posted_options['current_tab']));
+            $tabs = array_keys($this->tabs());
+
+            if (in_array($tab, $tabs, true)) {
+                $target = add_query_arg('tab', $tab, $target);
+            }
+        }
+
+        return $target;
     }
 
     private function help_tab_markup(): string

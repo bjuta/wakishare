@@ -393,11 +393,17 @@
         } else {
           url.searchParams.delete('tab');
         }
-        refererInput.value = url.pathname + url.search;
+        refererInput.value = url.toString();
       } catch (error) {
         var cleaned = base.replace(/([?&])tab=[^&#]*/g, '$1').replace(/[?&]$/, '');
+        var origin = window.location && window.location.origin ? window.location.origin : '';
+        if (cleaned.indexOf('://') === -1 && origin){
+          var needsSlash = cleaned.charAt(0) !== '/';
+          cleaned = origin.replace(/\/$/, '') + (needsSlash ? '/' : '') + cleaned;
+        }
         if (tab){
-          refererInput.value = cleaned + (cleaned.indexOf('?') === -1 ? '?' : '&') + 'tab=' + tab;
+          var separator = cleaned.indexOf('?') === -1 ? '?' : '&';
+          refererInput.value = cleaned + separator + 'tab=' + tab;
         } else {
           refererInput.value = cleaned;
         }
