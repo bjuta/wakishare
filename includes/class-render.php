@@ -32,6 +32,9 @@ class Render
     /** @var bool */
     private $media_config_localized = false;
 
+    /** @var bool */
+    private $metadata_output = false;
+
     public function __construct(
         Options $options,
         Networks $networks,
@@ -48,6 +51,7 @@ class Render
         $this->reactions   = $reactions;
         $this->text_domain = $text_domain;
         add_action('wp_enqueue_scripts', [$this, 'register_media_overlays'], 20);
+        add_action('wp_head', [$this, 'output_share_metadata']);
         $this->counts      = $counts;
     }
 
@@ -235,6 +239,10 @@ class Render
             'data-your-share-networks'       => $counts_state['network_list'],
             'data-your-share-count-url'      => $counts_state['url'],
             'data-your-share-count-ttl'      => $counts_state['ttl'],
+            'data-your-share-title'          => $title,
+            'data-your-share-url'            => $base,
+            'data-your-share-snippet'        => $share_ctx['excerpt'],
+            'data-your-share-image'          => $share_ctx['image'],
         ]); ?>
         <div class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr($style_inline); ?>"<?php echo $data_attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
             <div class="waki-share-row">
@@ -757,6 +765,108 @@ class Render
         return $default;
     }
 
+    public function output_share_metadata(): void
+    {
+        if ($this->metadata_output || is_admin()) {
+            return;
+        }
+
+        $context = $this->current_share_context([]);
+
+        $title   = $context['title'];
+        $url     = $context['url'];
+        $excerpt = $context['excerpt'];
+        $image   = $context['image'];
+        $post    = $context['post'];
+
+        if ($title === '' && $url === '') {
+            return;
+        }
+
+        $site_name = get_bloginfo('name', 'display');
+        $type      = $post instanceof \WP_Post ? 'article' : 'website';
+        $card      = $image !== '' ? 'summary_large_image' : 'summary';
+
+        $metadata = [
+            [
+                'property' => 'og:type',
+                'content'  => $type,
+            ],
+            [
+                'property' => 'og:title',
+                'content'  => $title,
+            ],
+            [
+                'property' => 'og:description',
+                'content'  => $excerpt,
+            ],
+            [
+                'property' => 'og:url',
+                'content'  => $url,
+            ],
+            [
+                'property' => 'og:site_name',
+                'content'  => $site_name,
+            ],
+            [
+                'property' => 'og:image',
+                'content'  => $image,
+            ],
+            [
+                'name'    => 'twitter:card',
+                'content' => $card,
+            ],
+            [
+                'name'    => 'twitter:title',
+                'content' => $title,
+            ],
+            [
+                'name'    => 'twitter:description',
+                'content' => $excerpt,
+            ],
+            [
+                'name'    => 'twitter:image',
+                'content' => $image,
+            ],
+            [
+                'name'    => 'twitter:url',
+                'content' => $url,
+            ],
+        ];
+
+        $metadata = array_filter($metadata, static function ($tag) {
+            return !empty($tag['content']);
+        });
+
+        $metadata = apply_filters('your_share_metadata', $metadata, $context);
+
+        if (empty($metadata)) {
+            return;
+        }
+
+        $this->metadata_output = true;
+
+        echo "\n<!-- Your Share metadata -->\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+
+        foreach ($metadata as $tag) {
+            $attr_name = isset($tag['property']) ? 'property' : 'name';
+            $attr_key  = $tag[$attr_name] ?? '';
+
+            if ($attr_key === '') {
+                continue;
+            }
+
+            printf(
+                '<meta %1$s="%2$s" content="%3$s" />' . "\n",
+                esc_attr($attr_name),
+                esc_attr($attr_key),
+                esc_attr($tag['content'])
+            );
+        }
+
+        echo "<!-- /Your Share metadata -->\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    }
+
     private function current_share_context(array $atts): array
     {
         $post  = get_post();
@@ -776,10 +886,44 @@ class Render
             $url = home_url('/');
         }
 
+        $excerpt = '';
+        $image   = '';
+
+        if ($post instanceof \WP_Post) {
+            if (has_excerpt($post)) {
+                $excerpt = $post->post_excerpt;
+            } else {
+                $content = strip_shortcodes((string) $post->post_content);
+                $excerpt = wp_trim_words($content, 40, '…');
+            }
+
+            $thumbnail_id = get_post_thumbnail_id($post);
+            if ($thumbnail_id) {
+                $image = wp_get_attachment_image_url($thumbnail_id, 'full') ?: '';
+            }
+        }
+
+        if ($excerpt === '') {
+            $excerpt = get_bloginfo('description', 'display');
+        }
+
+        $excerpt = wp_strip_all_tags((string) $excerpt);
+        $excerpt = trim(preg_replace('/\s+/', ' ', $excerpt));
+
+        if ($excerpt !== '') {
+            $excerpt = wp_html_excerpt($excerpt, 280, '…');
+        }
+
+        if ($image === '') {
+            $image = get_site_icon_url(512);
+        }
+
         return [
             'post'  => $post,
             'title' => wp_strip_all_tags($title),
             'url'   => $url,
+            'excerpt' => $excerpt,
+            'image'   => $image,
         ];
     }
 
