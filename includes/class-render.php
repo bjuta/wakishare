@@ -87,12 +87,6 @@ class Render
 
         $visible_limit = count($networks);
 
-        foreach (array_keys($map) as $slug) {
-            if (!in_array($slug, $networks, true)) {
-                $networks[] = $slug;
-            }
-        }
-
         $classes = [
             'waki-share',
             'waki-size-' . sanitize_html_class($atts['size'] ?? 'md'),
