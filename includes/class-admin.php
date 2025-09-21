@@ -391,16 +391,6 @@ class Admin
             __('Reaction bar', $this->text_domain),
             function (): void {
                 echo '<p>' . esc_html__('Offer quick emoji feedback alongside your share buttons.', $this->text_domain) . '</p>';
-
-    private function register_counts_settings(): void
-    {
-        $page = $this->page_id('counts');
-
-        add_settings_section(
-            'your_share_counts_general',
-            __('Caching & status', $this->text_domain),
-            function (): void {
-                echo '<p>' . esc_html__('Control if share counts are collected and how long cached values are retained.', $this->text_domain) . '</p>';
             },
             $page
         );
@@ -426,6 +416,33 @@ class Admin
             __('Maintenance', $this->text_domain),
             function (): void {
                 echo '<p>' . esc_html__('Reset stored counts when you want to start fresh.', $this->text_domain) . '</p>';
+            },
+            $page
+        );
+
+        add_settings_field(
+            'reactions_reset',
+            __('Reset totals', $this->text_domain),
+            [$this, 'field_reactions_reset'],
+            $page,
+            'your_share_reactions_maintenance'
+        );
+    }
+
+    private function register_counts_settings(): void
+    {
+        $page = $this->page_id('counts');
+
+        add_settings_section(
+            'your_share_counts_general',
+            __('Caching & status', $this->text_domain),
+            function (): void {
+                echo '<p>' . esc_html__('Control if share counts are collected and how long cached values are retained.', $this->text_domain) . '</p>';
+            },
+            $page
+        );
+
+        add_settings_field(
             'counts_general',
             __('Status', $this->text_domain),
             [$this, 'field_counts_general'],
@@ -460,11 +477,6 @@ class Admin
         );
 
         add_settings_field(
-            'reactions_reset',
-            __('Reset totals', $this->text_domain),
-            [$this, 'field_reactions_reset'],
-            $page,
-            'your_share_reactions_maintenance'
             'counts_credentials',
             __('Providers', $this->text_domain),
             [$this, 'field_counts_credentials'],
