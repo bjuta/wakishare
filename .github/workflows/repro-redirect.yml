@@ -1,0 +1,49 @@
+name: Repro: Options Redirect
+
+on:
+  workflow_dispatch:
+
+jobs:
+  repro:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm i -g @wordpress/env
+      - name: Start WordPress
+        run: wp-env start
+      - name: Prep site
+        run: |
+          wp-env run cli "wp plugin activate waki-share"
+          wp-env run cli "wp user create admin admin@example.com --role=administrator --user_pass=pass"
+          wp-env run cli "wp option add waki_share '{\"current_tab\":\"general\"}' --format=json || true"
+      - name: Create nonce for our option group
+        id: nonce
+        run: |
+          NONCE=$(wp-env run cli "wp nonce create 'waki_share-options'" | tr -d '\r')
+          echo "nonce=$NONCE" >> $GITHUB_OUTPUT
+      - name: Curl POST (no referer)
+        run: |
+          COOKIEJAR=cookies.txt
+          BASE=http://localhost:8888
+          # login
+          curl -s -c $COOKIEJAR -d "log=admin&pwd=pass&wp-submit=Log+In&redirect_to=$BASE/wp-admin/&testcookie=1" "$BASE/wp-login.php" > /dev/null
+          # post to options.php without referer
+          curl -s -i -b $COOKIEJAR -d "option_page=waki_share&_wpnonce=${{ steps.nonce.outputs.nonce }}&action=update&waki_share[current_tab]=general" "$BASE/wp-admin/options.php" | tee headers_no_referer.txt | sed -n '1,20p'
+      - name: Curl POST (relative referer)
+        run: |
+          BASE=http://localhost:8888
+          curl -s -i -H "Referer=/wp-admin/options-general.php?page=waki-share" -b cookies.txt -d "option_page=waki_share&_wpnonce=${{ steps.nonce.outputs.nonce }}&action=update&waki_share[current_tab]=general" "$BASE/wp-admin/options.php" | tee headers_relative.txt | sed -n '1,20p'
+      - name: Curl POST (absolute referer)
+        run: |
+          BASE=http://localhost:8888
+          curl -s -i -H "Referer=$BASE/wp-admin/options-general.php?page=waki-share&tab=general" -b cookies.txt -d "option_page=waki_share&_wpnonce=${{ steps.nonce.outputs.nonce }}&action=update&waki_share[current_tab]=general" "$BASE/wp-admin/options.php" | tee headers_absolute.txt | sed -n '1,20p'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: redirect-headers
+          path: |
+            headers_no_referer.txt
+            headers_relative.txt
+            headers_absolute.txt
