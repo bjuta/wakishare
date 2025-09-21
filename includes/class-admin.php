@@ -29,6 +29,9 @@ class Admin
     /** @var array|null */
     private $cached_values = null;
 
+    /** @var string */
+    private $option_group;
+
     public function __construct(Options $options, Networks $networks, Reactions $reactions, Analytics $analytics, string $slug, string $text_domain)
     {
         $this->options     = $options;
@@ -37,6 +40,7 @@ class Admin
         $this->analytics   = $analytics;
         $this->slug        = $slug;
         $this->text_domain = $text_domain;
+        $this->option_group = $slug;
     }
 
     public function register_hooks(): void
@@ -62,7 +66,7 @@ class Admin
     public function register_settings(): void
     {
         register_setting(
-            $this->options->key(),
+            $this->option_group,
             $this->options->key(),
             [
                 'sanitize_callback' => [$this, 'sanitize_settings'],
@@ -145,7 +149,7 @@ class Admin
                 <?php endforeach; ?>
             </h2>
             <form method="post" action="options.php" data-your-share-form>
-                <?php settings_fields($this->options->key()); ?>
+                <?php settings_fields($this->option_group); ?>
                 <input type="hidden" name="<?php echo esc_attr($this->options->key()); ?>[current_tab]" value="<?php echo esc_attr($current_tab); ?>" data-your-share-current-tab>
                 <div class="your-share-tab-panels">
                     <?php foreach ($tabs as $key => $label) :
@@ -211,7 +215,7 @@ class Admin
      */
     public function fix_settings_redirect(string $location, int $status): string
     {
-        if (empty($_POST['option_page']) || $_POST['option_page'] !== $this->options->key()) {
+        if (empty($_POST['option_page']) || $_POST['option_page'] !== $this->option_group) {
             return $location;
         }
 
