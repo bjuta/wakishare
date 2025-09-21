@@ -682,14 +682,17 @@
     setTimeout(function(){ toastEl.classList.remove('show'); }, 1600);
   }
 
-  function handleCopy(){
-    var current = window.location.href;
-    try {
-      navigator.clipboard.writeText(current);
-      toast(messages.copySuccess);
-    } catch (err) {
+  function handleCopy(url, snippet){
+    var parts = [];
+    if (snippet){
+      parts.push(snippet);
+    }
+    parts.push(url || window.location.href);
+    var message = parts.join('\n\n');
+
+    function legacyCopy(){
       var ta = document.createElement('textarea');
-      ta.value = current;
+      ta.value = message;
       document.body.appendChild(ta);
       ta.select();
       try {
@@ -699,6 +702,15 @@
         document.body.removeChild(ta);
       }
     }
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function'){
+      navigator.clipboard.writeText(message).then(function(){
+        toast(messages.copySuccess);
+      }).catch(legacyCopy);
+      return;
+    }
+
+    legacyCopy();
   }
 
   function analyticsRestRoot(){
@@ -854,6 +866,36 @@
       placement: placement,
       url: url || ''
     });
+  }
+
+  function getShareContext(wrapper){
+    var context = {
+      title: document.title || '',
+      url: window.location.href,
+      snippet: '',
+      image: ''
+    };
+
+    if (!wrapper || !wrapper.dataset){
+      return context;
+    }
+
+    var data = wrapper.dataset;
+
+    if (data.yourShareTitle){
+      context.title = data.yourShareTitle;
+    }
+    if (data.yourShareUrl){
+      context.url = data.yourShareUrl;
+    }
+    if (data.yourShareSnippet){
+      context.snippet = data.yourShareSnippet;
+    }
+    if (data.yourShareImage){
+      context.image = data.yourShareImage;
+    }
+
+    return context;
   }
 
   function trackReaction(bar, postId, slug){
@@ -1334,19 +1376,27 @@
     }
 
     var network = button.getAttribute('data-net');
+    var context = getShareContext(wrapper);
 
-      if (network === 'copy') {
-        event.preventDefault();
-      trackShare(wrapper, network, window.location.href);
-      handleCopy();
+    if (network === 'copy') {
+      event.preventDefault();
+      trackShare(wrapper, network, context.url);
+      handleCopy(context.url, context.snippet);
       return;
     }
 
     if (network === 'native') {
       event.preventDefault();
-      trackShare(wrapper, network, window.location.href);
+      trackShare(wrapper, network, context.url);
       if (navigator.share) {
-        navigator.share({ title: document.title, url: window.location.href }).catch(function(){});
+        var shareData = {
+          title: context.title || document.title,
+          url: context.url
+        };
+        if (context.snippet){
+          shareData.text = context.snippet;
+        }
+        navigator.share(shareData).catch(function(){});
       } else {
         toast(messages.shareUnsupported || 'Sharing not supported');
       }
