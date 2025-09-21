@@ -1,0 +1,55 @@
+name: CI (Lint • Static • Unit)
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4','8.0','8.1','8.2','8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, mysqli, json, tokenizer, xml
+          tools: composer:v2, cs2pr
+      - name: Install Composer deps
+        uses: ramsey/composer-install@v3
+        with:
+          dependency-versions: highest
+          composer-options: --no-interaction --prefer-dist
+      - name: PHPCS (WordPress Coding Standards)
+        run: |
+          vendor/bin/phpcs -q --report=checkstyle | cs2pr
+      - name: PHPStan
+        run: |
+          vendor/bin/phpstan analyse --no-progress
+      - name: PHPUnit (wp-phpunit)
+        env:
+          WP_PHPUNIT__DB_HOST: 127.0.0.1
+          WP_PHPUNIT__DB_NAME: wordpress
+          WP_PHPUNIT__DB_USER: root
+          WP_PHPUNIT__DB_PASSWORD: root
+        services:
+          mysql:
+            image: mysql:8
+            env:
+              MYSQL_DATABASE: wordpress
+              MYSQL_ROOT_PASSWORD: root
+            options: >-
+              --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+              --health-interval=10s --health-timeout=5s --health-retries=10
+            ports: [ "3306:3306" ]
+        run: |
+          cp vendor/wp-phpunit/wp-phpunit/wp-tests-config-sample.php vendor/wp-phpunit/wp-phpunit/wp-tests-config.php
+          sed -i "s/youremptytestdbnamehere/wordpress/" vendor/wp-phpunit/wp-phpunit/wp-tests-config.php
+          sed -i "s/yourusernamehere/root/"         vendor/wp-phpunit/wp-phpunit/wp-tests-config.php
+          sed -i "s/yourpasswordhere/root/"         vendor/wp-phpunit/wp-phpunit/wp-tests-config.php
+          sed -i "s|localhost|127.0.0.1|"           vendor/wp-phpunit/wp-phpunit/wp-tests-config.php
+          vendor/bin/phpunit --colors=always
