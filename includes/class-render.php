@@ -245,12 +245,12 @@ class Render
                         data-net="more"
                         data-share-toggle="more"
                         aria-expanded="false"
+                        aria-label="<?php esc_attr_e('More share options', $this->text_domain); ?>"
                         <?php if ($more_id !== '') : ?>aria-controls="<?php echo esc_attr($more_id); ?>"<?php endif; ?>
                     >
                         <span class="waki-icon" aria-hidden="true">
                             <?php echo $this->icons->svg('share-toggle'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                         </span>
-                        <span class="waki-label"><?php esc_html_e('More options', $this->text_domain); ?></span>
                     </button>
                 <?php endif; ?>
             </div>
