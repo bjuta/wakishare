@@ -38,7 +38,7 @@ class Reactions
 
     public function localize_script(): void
     {
-        if (!wp_script_is('your-share', 'enqueued')) {
+        if (!wp_script_is('your-share', 'registered') && !wp_script_is('your-share', 'enqueued')) {
             return;
         }
 
