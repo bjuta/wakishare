@@ -372,7 +372,12 @@
     var tabs = qsa(root, '[data-your-share-tab]');
     var panels = qsa(root, '[data-your-share-panel]');
     var currentInput = qs(root, '[data-your-share-current-tab]');
-    var refererInput = qs(root, '[data-your-share-referer]');
+    var form = qs(root, 'form[data-your-share-form]');
+    var refererInput = form ? qs(form, 'input[name="_wp_http_referer"]') : null;
+    var refererBase = form ? (form.getAttribute('data-your-share-referer-base') || '') : '';
+    if (!refererBase && refererInput){
+      refererBase = refererInput.value || '';
+    }
     if (!tabs.length || !panels.length || !currentInput){
       return;
     }
@@ -381,7 +386,7 @@
       if (!refererInput){
         return;
       }
-      var base = refererInput.getAttribute('data-base') || '';
+      var base = refererBase || '';
       if (!base){
         refererInput.value = '';
         return;
@@ -395,12 +400,7 @@
         }
         refererInput.value = url.toString();
       } catch (error) {
-        var cleaned = base.replace(/([?&])tab=[^&#]*/g, '$1').replace(/[?&]$/, '');
-        var origin = window.location && window.location.origin ? window.location.origin : '';
-        if (cleaned.indexOf('://') === -1 && origin){
-          var needsSlash = cleaned.charAt(0) !== '/';
-          cleaned = origin.replace(/\/$/, '') + (needsSlash ? '/' : '') + cleaned;
-        }
+        var cleaned = base.replace(/([?&])(tab|settings-updated)=[^&#]*/g, '$1').replace(/[?&]$/, '');
         if (tab){
           var separator = cleaned.indexOf('?') === -1 ? '?' : '&';
           refererInput.value = cleaned + separator + 'tab=' + tab;
@@ -409,6 +409,26 @@
         }
       }
     }
+
+    refererBase = (function(base){
+      if (!base){
+        return '';
+      }
+      try {
+        var url = new URL(base, window.location.origin);
+        url.searchParams.delete('tab');
+        url.searchParams.delete('settings-updated');
+        return url.toString();
+      } catch (error) {
+        var cleaned = base.replace(/([?&])(tab|settings-updated)=[^&#]*/g, '$1').replace(/[?&]$/, '');
+        var origin = window.location && window.location.origin ? window.location.origin : '';
+        if (cleaned.indexOf('://') === -1 && origin){
+          var needsSlash = cleaned.charAt(0) !== '/';
+          cleaned = origin.replace(/\/$/, '') + (needsSlash ? '/' : '') + cleaned;
+        }
+        return cleaned;
+      }
+    })(refererBase);
 
     function activateTab(tab, updateUrl){
       var found = false;
