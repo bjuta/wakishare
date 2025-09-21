@@ -191,7 +191,9 @@ class Render
                 $attr = apply_filters('your_share_button_attributes', $attr, $network, $context, $atts, $share_ctx);
                 ?>
                 <a <?php foreach ($attr as $key => $value) { echo esc_attr($key) . '="' . esc_attr($value) . '" '; } ?>>
-                    <?php echo $this->icons->svg($network); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    <span class="waki-icon" aria-hidden="true">
+                        <?php echo $this->icons->svg($network); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    </span>
                     <span class="waki-label"><?php echo esc_html($label); ?></span>
                     <?php if ($counts_state['enabled'] && !empty($opts['counts_show_badges'])) : ?>
                         <span class="waki-count" data-your-share-count="<?php echo esc_attr($network); ?>" data-value="<?php echo esc_attr((string) $count_value); ?>"><?php echo esc_html($this->format_count($count_value)); ?></span>
