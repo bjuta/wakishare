@@ -81,6 +81,8 @@ class Render
             $networks[] = 'native';
         }
 
+        $visible_limit = count($networks);
+
         foreach (array_keys($map) as $slug) {
             if (!in_array($slug, $networks, true)) {
                 $networks[] = $slug;
@@ -144,7 +146,7 @@ class Render
             $classes[] = 'waki-has-counts';
         }
 
-        $max_visible     = 5;
+        $max_visible     = $visible_limit;
         $visible_buttons = [];
         $hidden_buttons  = [];
         $button_index    = 0;
@@ -1006,14 +1008,48 @@ class Render
                 return "https://www.facebook.com/sharer/sharer.php?u={$url}";
             case 'x':
                 return "https://twitter.com/intent/tweet?text={$title}&url={$url}";
+            case 'threads':
+                return "https://www.threads.net/intent/post?text={$title}%20{$url}";
+            case 'bluesky':
+                return "https://bsky.app/intent/compose?text={$title}%20{$url}";
             case 'whatsapp':
                 return "https://wa.me/?text={$title}%20{$url}";
             case 'telegram':
                 return "https://t.me/share/url?url={$url}&text={$title}";
+            case 'line':
+                return "https://social-plugins.line.me/lineit/share?url={$url}";
             case 'linkedin':
                 return "https://www.linkedin.com/sharing/share-offsite/?url={$url}";
+            case 'pinterest':
+                return "https://www.pinterest.com/pin/create/button/?url={$url}&description={$title}";
             case 'reddit':
                 return "https://www.reddit.com/submit?url={$url}&title={$title}";
+            case 'tumblr':
+                return "https://www.tumblr.com/widgets/share/tool?canonicalUrl={$url}&title={$title}";
+            case 'mastodon':
+                return "https://mastodon.social/share?text={$title}%20{$url}";
+            case 'vk':
+                return "https://vk.com/share.php?url={$url}&title={$title}";
+            case 'weibo':
+                return "https://service.weibo.com/share/share.php?url={$url}&title={$title}";
+            case 'odnoklassniki':
+                return "https://connect.ok.ru/offer?url={$url}&title={$title}";
+            case 'xing':
+                return "https://www.xing.com/spi/shares/new?url={$url}";
+            case 'pocket':
+                return "https://getpocket.com/save?url={$url}&title={$title}";
+            case 'flipboard':
+                return "https://share.flipboard.com/bookmarklet/popout?v=2&title={$title}&url={$url}";
+            case 'buffer':
+                return "https://buffer.com/add?text={$title}&url={$url}";
+            case 'mix':
+                return "https://mix.com/mixit?url={$url}";
+            case 'evernote':
+                return "https://www.evernote.com/clip.action?url={$url}&title={$title}";
+            case 'diaspora':
+                return "https://share.diasporafoundation.org/?title={$title}&url={$url}";
+            case 'hacker-news':
+                return "https://news.ycombinator.com/submitlink?u={$url}&t={$title}";
             case 'email':
                 return "mailto:?subject={$title}&body={$title}%20—%20{$url}";
             default:
