@@ -31,7 +31,13 @@ class Container
                 throw new \InvalidArgumentException(sprintf('Service "%s" is not registered in the container.', $id));
             }
 
-            $this->instances[$id] = call_user_func($this->factories[$id], $this);
+            $factory = $this->factories[$id];
+
+            try {
+                $this->instances[$id] = $factory($this);
+            } catch (\ArgumentCountError $error) {
+                $this->instances[$id] = $factory();
+            }
         }
 
         return $this->instances[$id];
