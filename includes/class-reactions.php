@@ -456,6 +456,7 @@ class Reactions
                     data-reaction="<?php echo esc_attr($slug); ?>"
                     aria-pressed="<?php echo $is_current ? 'true' : 'false'; ?>"
                     aria-label="<?php echo esc_attr(sprintf(__('React with %s', $this->text_domain), $label)); ?>"
+                    title="<?php echo esc_attr($label); ?>"
                 >
                     <span class="<?php echo esc_attr($emoji_classes); ?>" aria-hidden="true">
                         <?php if ($image_url !== '') : ?>
@@ -464,7 +465,6 @@ class Reactions
                             <?php echo esc_html($emoji); ?>
                         <?php endif; ?>
                     </span>
-                    <span class="waki-reaction-label"><?php echo esc_html($label); ?></span>
                     <span class="waki-reaction-count" data-your-share-reaction-count><?php echo esc_html((string) $count); ?></span>
                 </button>
             <?php endforeach; ?>
