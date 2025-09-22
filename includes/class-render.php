@@ -105,10 +105,6 @@ class Render
             $networks = $this->prepare_networks($defaults, $allowed);
         }
 
-        if ($placement !== 'overlay' && !in_array('native', $networks, true)) {
-            $networks[] = 'native';
-        }
-
         $visible_limit = count($networks);
 
         $classes = [
