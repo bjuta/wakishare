@@ -1,14 +1,16 @@
-.waki-share{--waki-gap:8px;--waki-radius:9999px;--waki-pill-height:3rem;--waki-pill-padding:1.1rem;--waki-content-gap:.65rem;--icon-size:calc(var(--waki-pill-height)*0.5625);--optical-x:0px;--optical-y:0px;display:flex;flex-wrap:wrap;gap:var(--waki-gap);align-items:flex-start}
+.waki-share{--waki-gap:8px;--waki-radius:9999px;--waki-pill-height:2.75rem;--waki-pill-padding:.95rem;--waki-content-gap:.55rem;--icon-size:calc(var(--waki-pill-height)*0.5625);--optical-x:0px;--optical-y:0px;display:flex;flex-wrap:wrap;gap:var(--waki-gap);align-items:flex-start}
 .waki-share.align-center{justify-content:center}
 .waki-share.align-right{justify-content:flex-end}
 .waki-btn{display:inline-flex;align-items:center;place-items:center;gap:var(--waki-content-gap);text-decoration:none;border:1px solid transparent;border-radius:var(--waki-radius);transition:transform .08s ease,background .2s ease,border-color .2s ease;line-height:1;padding:0 var(--waki-pill-padding);min-block-size:var(--waki-pill-height);min-height:var(--waki-pill-height);height:var(--waki-pill-height)}
 .waki-btn .waki-icon{display:inline-flex;align-items:center;justify-content:center;width:var(--icon-size);height:var(--icon-size);flex:0 0 auto}
 .waki-btn .waki-icon__svg{display:block;width:100%;height:100%;transform:translate(var(--optical-x),var(--optical-y))}
 .waki-label{font-size:.875rem;font-weight:500}
-.waki-size-sm{--waki-pill-height:2.75rem;--waki-pill-padding:.85rem;--waki-content-gap:.55rem}
-.waki-size-md{--waki-pill-height:3rem;--waki-pill-padding:1.1rem}
+.waki-size-sm .waki-label{font-size:.8rem}
+.waki-size-lg .waki-label{font-size:.95rem}
+.waki-size-sm{--waki-pill-height:2.25rem;--waki-pill-padding:.75rem;--waki-content-gap:.4rem}
+.waki-size-md{--waki-pill-height:2.75rem;--waki-pill-padding:.95rem;--waki-content-gap:.55rem}
 .waki-size-lg{--waki-pill-height:3.25rem;--waki-pill-padding:1.25rem;--waki-content-gap:.75rem}
-.waki-size-sm .waki-btn{font-size:.85rem}
+.waki-size-sm .waki-btn{font-size:.8rem}
 .waki-size-md .waki-btn{font-size:.9rem}
 .waki-size-lg .waki-btn{font-size:1rem}
 .waki-btn[data-net="facebook"]{--optical-x:-.25px}
