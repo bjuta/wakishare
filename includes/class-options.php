@@ -31,7 +31,11 @@ class Options
             'share_align'               => 'left',
             'share_gap'                 => 8,
             'share_radius'              => 9999,
+            'share_inline_auto_enabled' => 0,
+            'share_inline_post_types'   => ['post', 'page'],
+            'share_inline_position'     => 'after',
             'share_networks_default'    => ['facebook', 'x', 'whatsapp', 'telegram', 'linkedin', 'reddit', 'email', 'copy'],
+            'share_inline_networks'     => [],
             'follow_networks'           => ['x', 'instagram', 'facebook-page', 'tiktok', 'youtube', 'linkedin'],
             'follow_profiles'           => [
                 'x'             => '',
@@ -77,6 +81,7 @@ class Options
             'counts_show_badges'        => 1,
             'counts_show_total'         => 1,
             'counts_refresh_interval'   => 60,
+            'counts_badge_radius'       => 9999,
             'counts_facebook_app_id'    => '',
             'counts_facebook_app_secret'=> '',
             'counts_reddit_app_id'      => '',
@@ -88,7 +93,8 @@ class Options
         $defaults['style']               = $defaults['share_style'];
         $defaults['size']                = $defaults['share_size'];
         $defaults['labels']              = $defaults['share_labels'];
-        $defaults['networks']            = implode(',', $defaults['share_networks_default']);
+        $defaults['share_inline_networks'] = $defaults['share_networks_default'];
+        $defaults['networks']              = implode(',', $defaults['share_networks_default']);
         $defaults['floating_enabled']    = $defaults['sticky_enabled'];
         $defaults['floating_position']   = $defaults['sticky_position'];
         $defaults['floating_breakpoint'] = $defaults['sticky_breakpoint'];
@@ -110,6 +116,13 @@ class Options
         $options  = wp_parse_args($stored, $defaults);
 
         $options['share_networks_default'] = $this->normalize_networks($options['share_networks_default']);
+        $inline_defaults = $defaults['share_inline_networks'] ?? $options['share_networks_default'];
+        $inline_networks = $options['share_inline_networks'] ?? $inline_defaults;
+        $inline_networks = $this->normalize_networks($inline_networks);
+        if (empty($inline_networks)) {
+            $inline_networks = $options['share_networks_default'];
+        }
+        $options['share_inline_networks'] = $inline_networks;
         $options['networks']               = implode(',', $options['share_networks_default']);
         $options['brand_colors']           = (int) $options['share_brand_colors'];
         $options['smart_share_matrix']     = $this->normalize_matrix($options['smart_share_matrix']);
@@ -121,6 +134,14 @@ class Options
         $options['floating_breakpoint']    = $options['sticky_breakpoint'];
         $options['gap']                    = (string) $options['share_gap'];
         $options['radius']                 = (string) $options['share_radius'];
+        $options['share_inline_auto_enabled'] = !empty($options['share_inline_auto_enabled']) ? 1 : 0;
+        $options['share_inline_post_types']   = $this->normalize_post_types(
+            $options['share_inline_post_types'] ?? $defaults['share_inline_post_types'],
+            $defaults['share_inline_post_types']
+        );
+        $position = sanitize_key($options['share_inline_position'] ?? $defaults['share_inline_position']);
+        $options['share_inline_position'] = in_array($position, ['after', 'before', 'both'], true)
+            ? $position : $defaults['share_inline_position'];
         $options['reactions_inline_enabled'] = !empty($options['reactions_inline_enabled']) ? 1 : 0;
         $options['reactions_sticky_enabled'] = !empty($options['reactions_sticky_enabled']) ? 1 : 0;
         $options['reactions_enabled']        = $this->normalize_reaction_toggles($options['reactions_enabled'] ?? [], true);
@@ -128,6 +149,7 @@ class Options
         $options['counts_show_badges']     = !empty($options['counts_show_badges']) ? 1 : 0;
         $options['counts_show_total']      = !empty($options['counts_show_total']) ? 1 : 0;
         $options['counts_refresh_interval']= max(0, (int) $options['counts_refresh_interval']);
+        $options['counts_badge_radius']    = max(0, (int) ($options['counts_badge_radius'] ?? $defaults['counts_badge_radius']));
         $options['follow_networks']        = $this->normalize_follow_networks($options['follow_networks'], $defaults['follow_networks']);
         $options['follow_profiles']        = $this->normalize_follow_profiles($options['follow_profiles'], $defaults['follow_profiles']);
         return $options;
@@ -161,8 +183,33 @@ class Options
         }
         $output['share_networks_default'] = $networks;
 
+        $inline_networks = $input['share_inline_networks'] ?? $defaults['share_inline_networks'];
+        if (is_string($inline_networks)) {
+            $inline_networks = explode(',', $inline_networks);
+        }
+        if (!is_array($inline_networks)) {
+            $inline_networks = [];
+        }
+        $inline_networks = $this->normalize_networks($inline_networks);
+        if (empty($inline_networks)) {
+            $inline_networks = $networks;
+        }
+        $output['share_inline_networks'] = $inline_networks;
+
         $output['share_gap']    = max(0, intval($input['share_gap'] ?? $defaults['share_gap']));
         $output['share_radius'] = max(0, intval($input['share_radius'] ?? $defaults['share_radius']));
+
+        $output['share_inline_auto_enabled'] = !empty($input['share_inline_auto_enabled']) ? 1 : 0;
+        $output['share_inline_post_types']   = $this->normalize_post_types(
+            $input['share_inline_post_types'] ?? $defaults['share_inline_post_types'],
+            $defaults['share_inline_post_types']
+        );
+        $position = sanitize_key($input['share_inline_position'] ?? $defaults['share_inline_position']);
+        $allowed_positions = ['after', 'before', 'both'];
+        if (!in_array($position, $allowed_positions, true)) {
+            $position = $defaults['share_inline_position'];
+        }
+        $output['share_inline_position'] = $position;
 
         $output['follow_networks'] = $this->normalize_follow_networks($input['follow_networks'] ?? $defaults['follow_networks'], $defaults['follow_networks']);
         $output['follow_profiles'] = $this->normalize_follow_profiles($input['follow_profiles'] ?? [], $defaults['follow_profiles']);
@@ -224,6 +271,7 @@ class Options
         $output['counts_show_badges'] = !empty($input['counts_show_badges']) ? 1 : 0;
         $output['counts_show_total'] = !empty($input['counts_show_total']) ? 1 : 0;
         $output['counts_refresh_interval'] = max(0, intval($input['counts_refresh_interval'] ?? $defaults['counts_refresh_interval']));
+        $output['counts_badge_radius'] = max(0, intval($input['counts_badge_radius'] ?? $defaults['counts_badge_radius']));
         $output['counts_facebook_app_id']     = sanitize_text_field($input['counts_facebook_app_id'] ?? '');
         $output['counts_facebook_app_secret'] = sanitize_text_field($input['counts_facebook_app_secret'] ?? '');
         $output['counts_reddit_app_id']       = sanitize_text_field($input['counts_reddit_app_id'] ?? '');
@@ -320,6 +368,36 @@ class Options
         }, $value));
 
         return array_values(array_unique($value));
+    }
+
+    private function normalize_post_types($post_types, array $fallback = []): array
+    {
+        if (is_string($post_types)) {
+            $post_types = array_map('trim', explode(',', $post_types));
+        }
+
+        if (!is_array($post_types)) {
+            $post_types = [];
+        }
+
+        $post_types = array_map('sanitize_key', $post_types);
+        $post_types = array_filter($post_types, static function ($value) {
+            return $value !== '';
+        });
+
+        $allowed = get_post_types(['public' => true], 'names');
+        if (!is_array($allowed)) {
+            $allowed = [];
+        }
+
+        $allowed = array_values($allowed);
+        $post_types = array_values(array_unique(array_intersect($post_types, $allowed)));
+
+        if (empty($post_types) && !empty($fallback)) {
+            $post_types = array_values(array_unique(array_intersect($fallback, $allowed)));
+        }
+
+        return $post_types;
     }
 
     private function normalize_follow_networks($value, array $allowed): array

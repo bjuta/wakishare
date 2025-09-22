@@ -779,7 +779,7 @@
     if (!target){
       return;
     }
-    var networksInput = qs(root, '[data-your-share-network-input]');
+    var networksInput = qs(root, '[data-your-share-network-input][name$="[share_networks_default]"]');
     var styleSelect = qs(root, '[data-your-share-shortcode-prop="style"]');
     var sizeSelect = qs(root, '[data-your-share-shortcode-prop="size"]');
     var labelsSelect = qs(root, '[data-your-share-shortcode-prop="labels"]');

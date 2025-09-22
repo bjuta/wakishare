@@ -66,6 +66,30 @@ class Render
         $allowed    = array_keys($map);
         $placement  = $context['placement'] ?? 'inline';
 
+        if (isset($atts['share_radius'])) {
+            $opts['share_radius'] = max(0, (int) $atts['share_radius']);
+        }
+
+        if (isset($atts['counts_enabled'])) {
+            $opts['counts_enabled'] = !empty($atts['counts_enabled']) ? 1 : 0;
+        }
+
+        if (isset($atts['counts_show_badges'])) {
+            $opts['counts_show_badges'] = !empty($atts['counts_show_badges']) ? 1 : 0;
+        }
+
+        if (isset($atts['counts_show_total'])) {
+            $opts['counts_show_total'] = !empty($atts['counts_show_total']) ? 1 : 0;
+        }
+
+        if (isset($atts['counts_badge_radius'])) {
+            $opts['counts_badge_radius'] = max(0, (int) $atts['counts_badge_radius']);
+        }
+
+        if (empty($opts['counts_show_badges']) && empty($opts['counts_show_total'])) {
+            $opts['counts_enabled'] = 0;
+        }
+
         $geo       = $this->resolve_geo_country($opts, $context, $atts);
         $matrix    = $opts['smart_share_matrix'] ?? [];
         $networks  = $this->prepare_networks($atts['networks'] ?? '', $allowed);
@@ -122,6 +146,8 @@ class Render
         }
 
         $style_inline = sprintf('--waki-gap:%dpx;--waki-radius:%dpx;', $gap, $radius);
+        $badge_radius = absint($opts['counts_badge_radius'] ?? $defaults['counts_badge_radius'] ?? 0);
+        $style_inline .= sprintf('--waki-count-radius:%dpx;', $badge_radius);
 
         if ($placement === 'floating') {
             $classes[]    = 'waki-share-floating';
