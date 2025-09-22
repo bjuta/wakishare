@@ -110,7 +110,7 @@
 .waki-share .waki-count{display:inline-flex;align-items:center;justify-content:center;margin-left:0;padding:.15rem .45rem;border-radius:var(--waki-count-radius,9999px);font-size:.75rem;font-weight:600;line-height:1;flex:0 0 auto}
 .waki-style-solid .waki-count{background:rgba(255,255,255,.28);color:#fff}
 .waki-style-outline .waki-count,.waki-style-ghost .waki-count{background:rgba(17,24,39,.08);color:inherit}
-.waki-share-total{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:.25rem;margin-right:0;margin-bottom:0;font-size:.9rem;font-weight:700;line-height:1.2}
+.waki-share-total{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.25rem;margin-right:0;margin-bottom:0;font-size:.9rem;font-weight:700;line-height:1.2;text-align:center}
 .waki-share-total .waki-total-label{font-weight:700}
 .waki-share-total .waki-total-value{font-size:1.35rem;font-weight:800;line-height:1.1}
 .waki-share-row{display:flex;flex-wrap:wrap;align-items:center;width:100%;gap:var(--waki-gap);flex:1 1 100%}
