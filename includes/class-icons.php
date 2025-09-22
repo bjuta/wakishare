@@ -81,6 +81,7 @@ class Icons
         }
 
         $svg = preg_replace('/<\?xml[^>]*>/i', '', $svg);
+        $svg = $this->normalize_svg_markup((string) $svg);
 
         $allowed = [
             'svg'  => [
@@ -109,5 +110,66 @@ class Icons
     private function fallback(): string
     {
         return '<svg class="waki-icon__svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="currentColor"><path d="M12 3l5 5h-3v6h-4V8H7l5-5z"/><path d="M5 17h14v4H5z"/></svg>';
+    }
+
+    private function normalize_svg_markup(string $svg): string
+    {
+        if ($svg === '') {
+            return $svg;
+        }
+
+        return (string) preg_replace_callback(
+            '/<svg\b([^>]*)>/i',
+            function (array $matches): string {
+                $attributes = $matches[1];
+
+                $attributes = $this->ensure_svg_attribute($attributes, 'class', 'waki-icon__svg', true);
+                $attributes = $this->ensure_svg_attribute($attributes, 'fill', 'currentColor');
+                $attributes = $this->ensure_svg_attribute($attributes, 'aria-hidden', 'true');
+                $attributes = $this->ensure_svg_attribute($attributes, 'focusable', 'false');
+
+                $attributes = trim($attributes);
+
+                return '<svg' . ($attributes !== '' ? ' ' . $attributes : '') . '>';
+            },
+            $svg,
+            1
+        );
+    }
+
+    private function ensure_svg_attribute(string $attributes, string $name, string $value, bool $append = false): string
+    {
+        $pattern = '/\b' . preg_quote($name, '/') . '\s*=\s*("|\')([^"\']*)\1/i';
+
+        if (preg_match($pattern, $attributes, $match)) {
+            if ($append) {
+                $existing = trim($match[2]);
+                $classes  = $existing !== '' ? preg_split('/\s+/', $existing) : [];
+
+                if (!is_array($classes)) {
+                    $classes = [];
+                }
+
+                $classes = array_values(array_filter($classes, static function ($class): bool {
+                    return $class !== '';
+                }));
+
+                if (!in_array($value, $classes, true)) {
+                    $classes[]   = $value;
+                    $replacement = $name . '=' . $match[1] . implode(' ', $classes) . $match[1];
+                    $attributes  = preg_replace($pattern, $replacement, $attributes, 1) ?? $attributes;
+                }
+            }
+
+            return $attributes;
+        }
+
+        $attributes = trim($attributes);
+
+        if ($attributes !== '') {
+            $attributes .= ' ';
+        }
+
+        return $attributes . sprintf('%s="%s"', $name, $value);
     }
 }
