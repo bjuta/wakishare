@@ -321,6 +321,23 @@ class Admin
         );
 
         add_settings_section(
+            'your_share_share_inline',
+            __('Automatic placement', $this->text_domain),
+            function (): void {
+                echo '<p>' . esc_html__('Decide where inline share buttons should appear by default.', $this->text_domain) . '</p>';
+            },
+            $page
+        );
+
+        add_settings_field(
+            'share_inline_auto',
+            __('Inline display', $this->text_domain),
+            [$this, 'field_share_inline_auto'],
+            $page,
+            'your_share_share_inline'
+        );
+
+        add_settings_section(
             'your_share_share_reference',
             __('Network reference', $this->text_domain),
             function (): void {
@@ -876,6 +893,53 @@ class Admin
         <?php
     }
 
+    public function field_share_inline_auto(): void
+    {
+        $values      = $this->values();
+        $enabled     = !empty($values['share_inline_auto_enabled']);
+        $post_types  = is_array($values['share_inline_post_types'] ?? null) ? $values['share_inline_post_types'] : [];
+        $position    = $values['share_inline_position'] ?? 'after';
+        $field_id    = $this->field_id('share_inline_position');
+        $objects     = get_post_types(['public' => true, 'show_ui' => true], 'objects');
+
+        if (!is_array($objects)) {
+            $objects = [];
+        }
+
+        ?>
+        <div class="your-share-field-stack">
+            <label class="your-share-toggle">
+                <input type="checkbox" name="<?php echo esc_attr($this->name('share_inline_auto_enabled')); ?>" value="1" <?php checked($enabled, 1); ?>>
+                <?php esc_html_e('Enable inline buttons on single views', $this->text_domain); ?>
+            </label>
+            <fieldset class="your-share-field-stack">
+                <legend><?php esc_html_e('Post types', $this->text_domain); ?></legend>
+                <?php if (!empty($objects)) : ?>
+                    <?php foreach ($objects as $slug => $object) :
+                        $label = $object->labels->singular_name ?? $object->label ?? $slug;
+                        ?>
+                        <label>
+                            <input type="checkbox" name="<?php echo esc_attr($this->name('share_inline_post_types')); ?>[]" value="<?php echo esc_attr($slug); ?>" <?php checked(in_array($slug, $post_types, true)); ?>>
+                            <?php echo esc_html($label); ?>
+                        </label>
+                    <?php endforeach; ?>
+                <?php else : ?>
+                    <p class="description"><?php esc_html_e('No public post types available.', $this->text_domain); ?></p>
+                <?php endif; ?>
+            </fieldset>
+            <label for="<?php echo esc_attr($field_id); ?>">
+                <span><?php esc_html_e('Placement relative to content', $this->text_domain); ?></span>
+                <select id="<?php echo esc_attr($field_id); ?>" name="<?php echo esc_attr($this->name('share_inline_position')); ?>">
+                    <option value="after" <?php selected($position, 'after'); ?>><?php esc_html_e('After the content', $this->text_domain); ?></option>
+                    <option value="before" <?php selected($position, 'before'); ?>><?php esc_html_e('Before the content', $this->text_domain); ?></option>
+                    <option value="both" <?php selected($position, 'both'); ?>><?php esc_html_e('Before and after the content', $this->text_domain); ?></option>
+                </select>
+            </label>
+            <p class="description"><?php esc_html_e('Editors can override visibility, corner radius, and share counts for each post from the Inline Share Buttons panel.', $this->text_domain); ?></p>
+        </div>
+        <?php
+    }
+
     public function field_share_shortcode_preview(): void
     {
         $values   = $this->values();
@@ -1121,6 +1185,13 @@ class Admin
             <label class="your-share-toggle">
                 <input type="checkbox" name="<?php echo esc_attr($this->name('counts_show_total')); ?>" value="1" <?php checked($values['counts_show_total'], 1); ?>>
                 <?php esc_html_e('Display the combined total above the button list', $this->text_domain); ?>
+            </label>
+            <label for="<?php echo esc_attr($this->field_id('counts_badge_radius')); ?>">
+                <span><?php esc_html_e('Badge corner radius', $this->text_domain); ?></span>
+                <div class="your-share-input-suffix">
+                    <input type="number" min="0" id="<?php echo esc_attr($this->field_id('counts_badge_radius')); ?>" name="<?php echo esc_attr($this->name('counts_badge_radius')); ?>" value="<?php echo esc_attr($values['counts_badge_radius']); ?>">
+                    <span>px</span>
+                </div>
             </label>
             <p class="description"><?php esc_html_e('Counts reuse the last successful response if a provider is unavailable.', $this->text_domain); ?></p>
         </div>

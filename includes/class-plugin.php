@@ -38,6 +38,7 @@ class Plugin
         $this->container->get(Rest::class)->register_hooks();
         $this->container->get(Analytics::class)->register_hooks();
         $this->container->get(Shortcode::class)->register_hooks();
+        $this->container->get(Inline::class)->register_hooks();
         $this->container->get(Blocks::class)->register_hooks();
 
         do_action('your_share_plugin_booted', $this);
@@ -96,6 +97,14 @@ class Plugin
                 $c->get(Reactions::class),
                 self::TEXT_DOMAIN,
                 $c->get(Counts::class)
+            );
+        });
+
+        $this->container->set(Inline::class, function (Container $c): Inline {
+            return new Inline(
+                $c->get(Options::class),
+                $c->get(Render::class),
+                self::TEXT_DOMAIN
             );
         });
 
