@@ -254,6 +254,18 @@ class Inline
             $atts['share_radius'] = max(0, intval($radius));
         }
 
+        $inline_networks = $options['share_inline_networks'] ?? [];
+        if (!is_array($inline_networks)) {
+            $inline_networks = [];
+        }
+        if (empty($inline_networks)) {
+            $inline_networks = $options['share_networks_default'] ?? $this->options->defaults()['share_networks_default'];
+        }
+        $inline_networks = array_values(array_unique(array_filter(array_map('sanitize_key', $inline_networks))));
+        if (!empty($inline_networks)) {
+            $atts['networks'] = implode(',', $inline_networks);
+        }
+
         $markup = $this->renderer->render_share_inline($atts);
 
         if ($markup === '') {

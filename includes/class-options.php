@@ -35,6 +35,7 @@ class Options
             'share_inline_post_types'   => ['post', 'page'],
             'share_inline_position'     => 'after',
             'share_networks_default'    => ['facebook', 'x', 'whatsapp', 'telegram', 'linkedin', 'reddit', 'email', 'copy'],
+            'share_inline_networks'     => [],
             'follow_networks'           => ['x', 'instagram', 'facebook-page', 'tiktok', 'youtube', 'linkedin'],
             'follow_profiles'           => [
                 'x'             => '',
@@ -92,7 +93,8 @@ class Options
         $defaults['style']               = $defaults['share_style'];
         $defaults['size']                = $defaults['share_size'];
         $defaults['labels']              = $defaults['share_labels'];
-        $defaults['networks']            = implode(',', $defaults['share_networks_default']);
+        $defaults['share_inline_networks'] = $defaults['share_networks_default'];
+        $defaults['networks']              = implode(',', $defaults['share_networks_default']);
         $defaults['floating_enabled']    = $defaults['sticky_enabled'];
         $defaults['floating_position']   = $defaults['sticky_position'];
         $defaults['floating_breakpoint'] = $defaults['sticky_breakpoint'];
@@ -114,6 +116,13 @@ class Options
         $options  = wp_parse_args($stored, $defaults);
 
         $options['share_networks_default'] = $this->normalize_networks($options['share_networks_default']);
+        $inline_defaults = $defaults['share_inline_networks'] ?? $options['share_networks_default'];
+        $inline_networks = $options['share_inline_networks'] ?? $inline_defaults;
+        $inline_networks = $this->normalize_networks($inline_networks);
+        if (empty($inline_networks)) {
+            $inline_networks = $options['share_networks_default'];
+        }
+        $options['share_inline_networks'] = $inline_networks;
         $options['networks']               = implode(',', $options['share_networks_default']);
         $options['brand_colors']           = (int) $options['share_brand_colors'];
         $options['smart_share_matrix']     = $this->normalize_matrix($options['smart_share_matrix']);
@@ -173,6 +182,19 @@ class Options
             $networks = $defaults['share_networks_default'];
         }
         $output['share_networks_default'] = $networks;
+
+        $inline_networks = $input['share_inline_networks'] ?? $defaults['share_inline_networks'];
+        if (is_string($inline_networks)) {
+            $inline_networks = explode(',', $inline_networks);
+        }
+        if (!is_array($inline_networks)) {
+            $inline_networks = [];
+        }
+        $inline_networks = $this->normalize_networks($inline_networks);
+        if (empty($inline_networks)) {
+            $inline_networks = $networks;
+        }
+        $output['share_inline_networks'] = $inline_networks;
 
         $output['share_gap']    = max(0, intval($input['share_gap'] ?? $defaults['share_gap']));
         $output['share_radius'] = max(0, intval($input['share_radius'] ?? $defaults['share_radius']));

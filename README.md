@@ -98,6 +98,7 @@ The plugin adds a **Follow** tab under *Settings → Your Share* with:
 - Drag-and-drop ordering for the default follow button order.
 - A live shortcode preview for `[share_follow]`.
 
+Configure the existing Share, Sticky Bar, Smart Share, and Analytics tabs to control the behaviour of share buttons. The **Share** tab now includes automatic inline placement controls so you can enable buttons for specific post types, choose whether they appear before or after the content, and pick a dedicated set of inline networks independent of the shortcode defaults. Editors can override those defaults, toggle share counts, and adjust button corners from the Inline Share Buttons panel that appears in the post sidebar.
 Configure the existing Share, Sticky Bar, Smart Share, and Analytics tabs to control the behaviour of share buttons. The **Share** tab now includes automatic inline placement controls so you can enable buttons for specific post types and choose whether they appear before or after the content. Editors can override those defaults, toggle share counts, and adjust button corners from the Inline Share Buttons panel that appears in the post sidebar.
 
 Fine-tune share count presentation from the **Share Counts** tab by adjusting badge rounding alongside the existing badge and total toggles.

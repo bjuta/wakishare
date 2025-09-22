@@ -900,6 +900,10 @@ class Admin
         $post_types  = is_array($values['share_inline_post_types'] ?? null) ? $values['share_inline_post_types'] : [];
         $position    = $values['share_inline_position'] ?? 'after';
         $field_id    = $this->field_id('share_inline_position');
+        $inline_networks = is_array($values['share_inline_networks'] ?? null) ? $values['share_inline_networks'] : [];
+        $network_map      = $this->networks->all();
+        $inline_order     = array_unique(array_merge($inline_networks, array_keys($network_map)));
+        $inline_input_id  = $this->field_id('share_inline_networks');
         $objects     = get_post_types(['public' => true, 'show_ui' => true], 'objects');
 
         if (!is_array($objects)) {
@@ -935,6 +939,60 @@ class Admin
                     <option value="both" <?php selected($position, 'both'); ?>><?php esc_html_e('Before and after the content', $this->text_domain); ?></option>
                 </select>
             </label>
+            <fieldset class="your-share-field-stack">
+                <legend><?php esc_html_e('Networks', $this->text_domain); ?></legend>
+                <p class="description"><?php esc_html_e('Choose which services appear when inline buttons render automatically. Leave empty to inherit the shortcode defaults.', $this->text_domain); ?></p>
+                <div class="your-share-network-picker" data-your-share-networks>
+                    <input
+                        type="hidden"
+                        id="<?php echo esc_attr($inline_input_id); ?>"
+                        name="<?php echo esc_attr($this->name('share_inline_networks')); ?>"
+                        value="<?php echo esc_attr(implode(',', $inline_networks)); ?>"
+                        data-your-share-network-input
+                    >
+                    <div class="your-share-network-selected">
+                        <p class="description"><?php esc_html_e('Drag to reorder or remove inline networks.', $this->text_domain); ?></p>
+                        <ul class="your-share-network-list" data-your-share-network-list>
+                            <?php foreach ($inline_networks as $slug) :
+                                $label        = $network_map[$slug][0] ?? ucwords(str_replace('-', ' ', $slug));
+                                $color        = $network_map[$slug][1] ?? '#111827';
+                                $remove_label = sprintf(__('Remove %s', $this->text_domain), $label);
+                                ?>
+                                <li class="your-share-network-item" data-value="<?php echo esc_attr($slug); ?>" draggable="true">
+                                    <span class="your-share-network-handle" aria-hidden="true">⋮⋮</span>
+                                    <span class="your-share-network-swatch" style="--your-share-network-color: <?php echo esc_attr($color); ?>"></span>
+                                    <span class="your-share-network-label"><?php echo esc_html($label); ?></span>
+                                    <button type="button" class="your-share-network-remove" data-action="remove" aria-label="<?php echo esc_attr($remove_label); ?>">&times;</button>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                        <p class="description"><span data-your-share-network-count><?php echo esc_html(count($inline_networks)); ?></span> <?php esc_html_e('active networks.', $this->text_domain); ?></p>
+                    </div>
+                    <div class="your-share-network-available">
+                        <p class="description"><?php esc_html_e('Add additional services:', $this->text_domain); ?></p>
+                        <div class="your-share-network-buttons">
+                            <?php foreach ($inline_order as $slug) :
+                                $label        = $network_map[$slug][0] ?? ucwords(str_replace('-', ' ', $slug));
+                                $color        = $network_map[$slug][1] ?? '#111827';
+                                $remove_label = sprintf(__('Remove %s', $this->text_domain), $label);
+                                $is_active    = in_array($slug, $inline_networks, true);
+                                ?>
+                                <button
+                                    type="button"
+                                    class="button button-small your-share-network-add<?php echo $is_active ? ' is-active' : ''; ?>"
+                                    data-value="<?php echo esc_attr($slug); ?>"
+                                    data-label="<?php echo esc_attr($label); ?>"
+                                    data-color="<?php echo esc_attr($color); ?>"
+                                    data-remove-label="<?php echo esc_attr($remove_label); ?>"
+                                    <?php disabled($is_active); ?>
+                                >
+                                    <?php echo esc_html($label); ?>
+                                </button>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+            </fieldset>
             <p class="description"><?php esc_html_e('Editors can override visibility, corner radius, and share counts for each post from the Inline Share Buttons panel.', $this->text_domain); ?></p>
         </div>
         <?php
