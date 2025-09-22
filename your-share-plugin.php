@@ -23,6 +23,7 @@ require_once __DIR__ . '/includes/class-utm.php';
 require_once __DIR__ . '/includes/class-reactions.php';
 require_once __DIR__ . '/includes/class-counts.php';
 require_once __DIR__ . '/includes/class-render.php';
+require_once __DIR__ . '/includes/class-inline.php';
 require_once __DIR__ . '/includes/class-asset-loader.php';
 require_once __DIR__ . '/includes/class-analytics.php';
 require_once __DIR__ . '/includes/class-admin.php';
