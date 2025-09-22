@@ -105,10 +105,6 @@ class Render
             $networks = $this->prepare_networks($defaults, $allowed);
         }
 
-        if ($placement !== 'overlay' && !in_array('native', $networks, true)) {
-            $networks[] = 'native';
-        }
-
         $visible_limit = count($networks);
 
         $classes = [
@@ -268,8 +264,8 @@ class Render
             <div class="waki-share-row">
                 <?php if ($counts_state['enabled'] && !empty($opts['counts_show_total'])) : ?>
                     <div class="waki-share-total" data-your-share-total>
-                        <span class="waki-total-label"><?php esc_html_e('Shares', $this->text_domain); ?></span>
                         <span class="waki-total-value" data-your-share-total-value data-value="<?php echo esc_attr((string) $counts_state['total']); ?>"><?php echo esc_html($this->format_count($counts_state['total'])); ?></span>
+                        <span class="waki-total-label"><?php esc_html_e('Shares', $this->text_domain); ?></span>
                     </div>
                 <?php endif; ?>
                 <div class="waki-share-buttons" data-your-share-buttons>

@@ -783,12 +783,14 @@
     var styleSelect = qs(root, '[data-your-share-shortcode-prop="style"]');
     var sizeSelect = qs(root, '[data-your-share-shortcode-prop="size"]');
     var labelsSelect = qs(root, '[data-your-share-shortcode-prop="labels"]');
+    var alignSelect = qs(root, '[data-your-share-shortcode-prop="align"]');
     var brandToggle = qs(root, '[data-your-share-shortcode-prop="brand"]');
 
     var networks = networksInput ? networksInput.value.trim() : '';
     var style = styleSelect ? styleSelect.value : 'solid';
     var size = sizeSelect ? sizeSelect.value : 'md';
     var labels = labelsSelect ? labelsSelect.value : 'auto';
+    var align = alignSelect ? alignSelect.value : 'left';
     var brand = '0';
     if (brandToggle){
       if (brandToggle.type === 'checkbox'){
@@ -803,6 +805,7 @@
     shortcode += ' style="' + style + '"';
     shortcode += ' size="' + size + '"';
     shortcode += ' labels="' + labels + '"';
+    shortcode += ' align="' + align + '"';
     shortcode += ' brand="' + brand + '"';
     shortcode += ']';
 

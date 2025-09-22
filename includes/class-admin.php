@@ -868,7 +868,7 @@ class Admin
         <div class="your-share-field-grid">
             <label for="<?php echo esc_attr($this->field_id('share_align')); ?>">
                 <span><?php esc_html_e('Alignment', $this->text_domain); ?></span>
-                <select id="<?php echo esc_attr($this->field_id('share_align')); ?>" name="<?php echo esc_attr($this->name('share_align')); ?>" data-your-share-follow-prop="align">
+                <select id="<?php echo esc_attr($this->field_id('share_align')); ?>" name="<?php echo esc_attr($this->name('share_align')); ?>" data-your-share-shortcode-prop="align" data-your-share-follow-prop="align">
                     <option value="left" <?php selected($values['share_align'], 'left'); ?>><?php esc_html_e('Left', $this->text_domain); ?></option>
                     <option value="center" <?php selected($values['share_align'], 'center'); ?>><?php esc_html_e('Center', $this->text_domain); ?></option>
                     <option value="right" <?php selected($values['share_align'], 'right'); ?>><?php esc_html_e('Right', $this->text_domain); ?></option>
