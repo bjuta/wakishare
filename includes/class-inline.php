@@ -279,7 +279,13 @@ class Inline
         }
 
         if ($position === 'both') {
-            return $markup . $content . $markup;
+            $second_markup = $this->renderer->render_share_inline($atts);
+
+            if ($second_markup === '') {
+                return $markup . $content;
+            }
+
+            return $markup . $content . $second_markup;
         }
 
         return $content . $markup;
