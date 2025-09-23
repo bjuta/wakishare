@@ -436,43 +436,108 @@ class Reactions
             $attributes['data-user'] = implode(',', $user_reactions);
         }
 
-        $attributes = $this->format_attributes($attributes);
-        $counts     = $this->get_counts($post_id);
+        $attributes  = $this->format_attributes($attributes);
+        $counts      = $this->get_counts($post_id);
+        $visible     = array_slice($active, 0, 5, true);
+        $overflow    = array_slice($active, 5, null, true);
+        $palette_id  = !empty($overflow) ? uniqid('waki-reactions-palette-') : '';
 
         ob_start();
         ?>
         <div<?php echo $attributes; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-            <?php foreach ($active as $slug => $data) :
-                $label        = $data['label'];
-                $emoji        = $data['emoji'];
-                $image_url    = $this->emoji_image_url($data);
-                $count        = $counts[$slug] ?? 0;
-                $is_current   = in_array($slug, $user_reactions, true);
-                $emoji_classes = 'waki-reaction-emoji' . ($image_url !== '' ? ' is-image' : '');
-                ?>
-                <button
-                    type="button"
-                    class="waki-reaction<?php echo $is_current ? ' is-active' : ''; ?>"
-                    data-reaction="<?php echo esc_attr($slug); ?>"
-                    aria-pressed="<?php echo $is_current ? 'true' : 'false'; ?>"
-                    aria-label="<?php echo esc_attr(sprintf(__('React with %s', $this->text_domain), $label)); ?>"
-                    title="<?php echo esc_attr($label); ?>"
+            <div class="waki-reactions-primary" data-your-share-reaction-primary>
+                <?php foreach ($visible as $slug => $data) :
+                    echo $this->render_reaction_button($slug, $data, $user_reactions, $counts); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                endforeach; ?>
+                <?php if (!empty($overflow)) :
+                    $more_label = __('More reactions', $this->text_domain);
+                    ?>
+                    <button
+                        type="button"
+                        class="waki-reaction-more"
+                        data-your-share-reaction-toggle
+                        aria-haspopup="dialog"
+                        aria-expanded="false"
+                        aria-label="<?php echo esc_attr($more_label); ?>"
+                        <?php if ($palette_id !== '') : ?>aria-controls="<?php echo esc_attr($palette_id); ?>"<?php endif; ?>
+                    >
+                        <span class="waki-reaction-emoji" aria-hidden="true">⋯</span>
+                        <span class="waki-reaction-more-label"><?php echo esc_html($more_label); ?></span>
+                    </button>
+                <?php endif; ?>
+            </div>
+            <?php if (!empty($overflow)) : ?>
+                <div
+                    class="waki-reactions-palette"
+                    data-your-share-reaction-palette
+                    <?php if ($palette_id !== '') : ?>id="<?php echo esc_attr($palette_id); ?>"<?php endif; ?>
+                    tabindex="-1"
+                    hidden
+                    aria-hidden="true"
+                    role="dialog"
+                    aria-label="<?php esc_attr_e('Choose a reaction', $this->text_domain); ?>"
                 >
-                    <span class="<?php echo esc_attr($emoji_classes); ?>" aria-hidden="true">
-                        <?php if ($image_url !== '') : ?>
-                            <img src="<?php echo esc_url($image_url); ?>" alt="" role="presentation">
-                        <?php else : ?>
-                            <?php echo esc_html($emoji); ?>
-                        <?php endif; ?>
-                    </span>
-                    <span class="waki-reaction-count" data-your-share-reaction-count><?php echo esc_html((string) $count); ?></span>
-                </button>
-            <?php endforeach; ?>
+                    <div class="waki-reactions-palette__inner">
+                        <?php foreach ($overflow as $slug => $data) :
+                            echo $this->render_reaction_button($slug, $data, $user_reactions, $counts); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                        endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
         <?php
         $markup = trim((string) ob_get_clean());
 
         return (string) apply_filters('your_share_reactions_markup', $markup, $post_id, $placement, $active, $counts);
+    }
+
+    private function render_reaction_button(string $slug, array $data, array $user_reactions, array $counts): string
+    {
+        $label      = $data['label'];
+        $emoji      = $data['emoji'];
+        $image_url  = $this->emoji_image_url($data);
+        $count      = max(0, intval($counts[$slug] ?? 0));
+        $is_current = in_array($slug, $user_reactions, true);
+
+        $classes = ['waki-reaction'];
+
+        if ($is_current) {
+            $classes[] = 'is-active';
+        }
+
+        if ($count > 0) {
+            $classes[] = 'has-count';
+        }
+
+        $emoji_classes = 'waki-reaction-emoji' . ($image_url !== '' ? ' is-image' : '');
+
+        ob_start();
+        ?>
+        <button
+            type="button"
+            class="<?php echo esc_attr(implode(' ', $classes)); ?>"
+            data-reaction="<?php echo esc_attr($slug); ?>"
+            aria-pressed="<?php echo $is_current ? 'true' : 'false'; ?>"
+            aria-label="<?php echo esc_attr(sprintf(__('React with %s', $this->text_domain), $label)); ?>"
+            title="<?php echo esc_attr($label); ?>"
+        >
+            <span class="<?php echo esc_attr($emoji_classes); ?>" aria-hidden="true">
+                <?php if ($image_url !== '') : ?>
+                    <img src="<?php echo esc_url($image_url); ?>" alt="" role="presentation">
+                <?php else : ?>
+                    <?php echo esc_html($emoji); ?>
+                <?php endif; ?>
+            </span>
+            <span
+                class="waki-reaction-count"
+                data-your-share-reaction-count
+                data-visible="<?php echo $count > 0 ? '1' : '0'; ?>"
+                aria-hidden="<?php echo $count > 0 ? 'false' : 'true'; ?>"
+            ><?php echo esc_html((string) $count); ?></span>
+        </button>
+        <?php
+
+        return trim((string) ob_get_clean());
     }
 
     /**

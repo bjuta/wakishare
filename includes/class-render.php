@@ -112,9 +112,15 @@ class Render
             'waki-size-' . sanitize_html_class($atts['size'] ?? 'md'),
             'waki-style-' . sanitize_html_class($atts['style'] ?? 'solid'),
             'waki-labels-' . sanitize_html_class($atts['labels'] ?? 'auto'),
-            !empty($atts['brand']) && (string) $atts['brand'] === '1' ? 'is-brand' : 'is-mono',
             'waki-share-placement-' . sanitize_html_class($placement),
         ];
+
+        if (!empty($atts['brand']) && (string) $atts['brand'] === '1') {
+            $classes[] = 'is-brand';
+        } else {
+            $classes[] = 'is-mono';
+            $classes[] = 'is-neutral';
+        }
 
         $defaults = $this->options->defaults();
 
@@ -217,8 +223,10 @@ class Render
                     <?php echo $this->icons->svg($network); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 </span>
                 <span class="waki-label"><?php echo esc_html($label); ?></span>
-                <?php if ($counts_state['enabled'] && !empty($opts['counts_show_badges'])) : ?>
-                    <span class="waki-count" data-your-share-count="<?php echo esc_attr($network); ?>" data-value="<?php echo esc_attr((string) $count_value); ?>"><?php echo esc_html($this->format_count($count_value)); ?></span>
+                <?php if ($counts_state['enabled'] && !empty($opts['counts_show_badges'])) :
+                    $count_visible = $count_value > 0 ? '1' : '0';
+                    ?>
+                    <span class="waki-count" data-your-share-count="<?php echo esc_attr($network); ?>" data-value="<?php echo esc_attr((string) $count_value); ?>" data-visible="<?php echo esc_attr($count_visible); ?>" aria-hidden="<?php echo $count_value > 0 ? 'false' : 'true'; ?>"><?php echo esc_html($this->format_count($count_value)); ?></span>
                 <?php endif; ?>
             </a>
             <?php
@@ -243,6 +251,10 @@ class Render
             $more_id = uniqid('waki-share-more-');
         }
 
+        $react_label_id = $inline_reactions_markup !== '' ? uniqid('waki-react-label-') : '';
+        $show_total     = $counts_state['enabled'] && !empty($opts['counts_show_total']);
+        $show_meta      = $show_total || $inline_reactions_markup !== '';
+
         ob_start();
         ?>
         <?php $data_attrs = $this->format_attributes([
@@ -261,18 +273,33 @@ class Render
             'data-your-share-image'          => $share_ctx['image'],
         ]); ?>
         <div class="<?php echo esc_attr(implode(' ', $classes)); ?>" style="<?php echo esc_attr($style_inline); ?>"<?php echo $data_attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-            <div class="waki-share-row">
-                <?php if ($counts_state['enabled'] && !empty($opts['counts_show_total'])) : ?>
-                    <div class="waki-share-total" data-your-share-total>
-                        <span class="waki-total-value" data-your-share-total-value data-value="<?php echo esc_attr((string) $counts_state['total']); ?>"><?php echo esc_html($this->format_count($counts_state['total'])); ?></span>
-                        <span class="waki-total-label"><?php esc_html_e('Shares', $this->text_domain); ?></span>
+            <?php if ($show_meta) : ?>
+                <div class="waki-share-meta">
+                    <div class="waki-share-meta-left">
+                        <?php if ($show_total) : ?>
+                            <div class="waki-share-total" data-your-share-total>
+                                <span class="waki-total-value" data-your-share-total-value data-value="<?php echo esc_attr((string) $counts_state['total']); ?>"><?php echo esc_html($this->format_count($counts_state['total'])); ?></span>
+                                <span class="waki-total-label"><?php esc_html_e('Shares', $this->text_domain); ?></span>
+                            </div>
+                        <?php else : ?>
+                            <span class="waki-share-prompt"><?php esc_html_e('Share', $this->text_domain); ?></span>
+                        <?php endif; ?>
                     </div>
-                <?php endif; ?>
+                    <?php if ($inline_reactions_markup !== '') : ?>
+                        <div class="waki-share-meta-right">
+                            <span class="waki-share-meta-divider" aria-hidden="true"></span>
+                            <span class="waki-share-react-label" id="<?php echo esc_attr($react_label_id); ?>"><?php esc_html_e('React', $this->text_domain); ?></span>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+            <div class="waki-share-row">
                 <div class="waki-share-buttons" data-your-share-buttons>
                     <?php foreach ($visible_buttons as $button_markup) :
                         echo $button_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                     endforeach; ?>
                     <?php if (!empty($hidden_buttons)) : ?>
+                        <?php $toggle_id = uniqid('waki-share-more-toggle-'); ?>
                         <button
                             type="button"
                             class="waki-btn waki-btn--toggle"
@@ -280,6 +307,7 @@ class Render
                             data-share-toggle="more"
                             aria-expanded="false"
                             aria-label="<?php esc_attr_e('More share options', $this->text_domain); ?>"
+                            id="<?php echo esc_attr($toggle_id); ?>"
                             <?php if ($more_id !== '') : ?>aria-controls="<?php echo esc_attr($more_id); ?>"<?php endif; ?>
                         >
                             <span class="waki-icon" aria-hidden="true">
@@ -290,15 +318,14 @@ class Render
                 </div>
             </div>
             <?php if (!empty($hidden_buttons)) : ?>
-                <div class="waki-share-extra" data-your-share-extra<?php echo $more_id !== '' ? ' id="' . esc_attr($more_id) . '"' : ''; ?> hidden aria-hidden="true">
+                <div class="waki-share-extra" data-your-share-extra<?php echo $more_id !== '' ? ' id="' . esc_attr($more_id) . '"' : ''; ?> hidden aria-hidden="true" role="dialog" aria-modal="true" tabindex="-1"<?php echo isset($toggle_id) ? ' aria-labelledby="' . esc_attr($toggle_id) . '"' : ''; ?>>
                     <?php foreach ($hidden_buttons as $button_markup) :
                         echo $button_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                     endforeach; ?>
                 </div>
             <?php endif; ?>
             <?php if ($inline_reactions_markup !== '') : ?>
-                <div class="waki-share-react-field" data-your-share-react>
-                    <span class="waki-share-react-label"><?php esc_html_e('React', $this->text_domain); ?></span>
+                <div class="waki-share-react-field" data-your-share-react<?php echo $react_label_id !== '' ? ' aria-labelledby="' . esc_attr($react_label_id) . '"' : ' aria-label="' . esc_attr__('React', $this->text_domain) . '"'; ?>>
                     <?php echo $inline_reactions_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 </div>
             <?php endif; ?>
