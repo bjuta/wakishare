@@ -29,6 +29,7 @@ class Options
             'share_size'                => 'md',
             'share_labels'              => 'auto',
             'share_align'               => 'left',
+            'share_inline_align'        => 'left',
             'share_gap'                 => 8,
             'share_radius'              => 9999,
             'share_inline_auto_enabled' => 0,
@@ -93,6 +94,7 @@ class Options
         $defaults['style']               = $defaults['share_style'];
         $defaults['size']                = $defaults['share_size'];
         $defaults['labels']              = $defaults['share_labels'];
+        $defaults['share_inline_align']  = $defaults['share_align'];
         $defaults['share_inline_networks'] = $defaults['share_networks_default'];
         $defaults['networks']              = implode(',', $defaults['share_networks_default']);
         $defaults['floating_enabled']    = $defaults['sticky_enabled'];
@@ -116,6 +118,9 @@ class Options
         $options  = wp_parse_args($stored, $defaults);
 
         $options['share_networks_default'] = $this->normalize_networks($options['share_networks_default']);
+        if (!in_array($options['share_align'], ['left', 'center', 'right', 'space-between'], true)) {
+            $options['share_align'] = $defaults['share_align'];
+        }
         $inline_defaults = $defaults['share_inline_networks'] ?? $options['share_networks_default'];
         $inline_networks = $options['share_inline_networks'] ?? $inline_defaults;
         $inline_networks = $this->normalize_networks($inline_networks);
@@ -134,6 +139,22 @@ class Options
         $options['floating_breakpoint']    = $options['sticky_breakpoint'];
         $options['gap']                    = (string) $options['share_gap'];
         $options['radius']                 = (string) $options['share_radius'];
+        $allowed_alignments = ['left', 'center', 'right', 'space-between'];
+        $inline_align       = $options['share_inline_align'] ?? $defaults['share_inline_align'];
+
+        if (!in_array($inline_align, $allowed_alignments, true)) {
+            if (!array_key_exists('share_inline_align', $stored)) {
+                $inline_align = $options['share_align'];
+            } else {
+                $inline_align = $defaults['share_inline_align'];
+            }
+        }
+
+        if (!in_array($inline_align, $allowed_alignments, true)) {
+            $inline_align = $defaults['share_inline_align'];
+        }
+
+        $options['share_inline_align']     = $inline_align;
         $options['share_inline_auto_enabled'] = !empty($options['share_inline_auto_enabled']) ? 1 : 0;
         $options['share_inline_post_types']   = $this->normalize_post_types(
             $options['share_inline_post_types'] ?? $defaults['share_inline_post_types'],
@@ -167,8 +188,17 @@ class Options
             ? $input['share_size'] : $defaults['share_size'];
         $output['share_labels']       = in_array($input['share_labels'] ?? '', ['auto', 'show', 'hide'], true)
             ? $input['share_labels'] : $defaults['share_labels'];
-        $output['share_align']        = in_array($input['share_align'] ?? '', ['left', 'center', 'right', 'space-between'], true)
+        $alignment_choices = ['left', 'center', 'right', 'space-between'];
+        $output['share_align']        = in_array($input['share_align'] ?? '', $alignment_choices, true)
             ? $input['share_align'] : $defaults['share_align'];
+
+        $inline_align = $input['share_inline_align'] ?? '';
+        if (!in_array($inline_align, $alignment_choices, true)) {
+            $inline_align = in_array($output['share_align'], $alignment_choices, true)
+                ? $output['share_align']
+                : $defaults['share_inline_align'];
+        }
+        $output['share_inline_align'] = $inline_align;
 
         $networks = $input['share_networks_default'] ?? $defaults['share_networks_default'];
         if (is_string($networks)) {

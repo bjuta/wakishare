@@ -266,6 +266,16 @@ class Inline
             $atts['networks'] = implode(',', $inline_networks);
         }
 
+        $defaults      = $this->options->defaults();
+        $inline_align  = $options['share_inline_align'] ?? $defaults['share_inline_align'];
+        $align_choices = ['left', 'center', 'right', 'space-between'];
+
+        if (!in_array($inline_align, $align_choices, true)) {
+            $inline_align = $defaults['share_inline_align'];
+        }
+
+        $atts['share_align'] = $inline_align;
+
         $markup = $this->renderer->render_share_inline($atts);
 
         if ($markup === '') {

@@ -899,7 +899,9 @@ class Admin
         $enabled     = !empty($values['share_inline_auto_enabled']);
         $post_types  = is_array($values['share_inline_post_types'] ?? null) ? $values['share_inline_post_types'] : [];
         $position    = $values['share_inline_position'] ?? 'after';
+        $inline_align = $values['share_inline_align'] ?? $values['share_align'] ?? 'left';
         $field_id    = $this->field_id('share_inline_position');
+        $align_field_id = $this->field_id('share_inline_align');
         $inline_networks = is_array($values['share_inline_networks'] ?? null) ? $values['share_inline_networks'] : [];
         $network_map      = $this->networks->all();
         $inline_order     = array_unique(array_merge($inline_networks, array_keys($network_map)));
@@ -937,6 +939,15 @@ class Admin
                     <option value="after" <?php selected($position, 'after'); ?>><?php esc_html_e('After the content', $this->text_domain); ?></option>
                     <option value="before" <?php selected($position, 'before'); ?>><?php esc_html_e('Before the content', $this->text_domain); ?></option>
                     <option value="both" <?php selected($position, 'both'); ?>><?php esc_html_e('Before and after the content', $this->text_domain); ?></option>
+                </select>
+            </label>
+            <label for="<?php echo esc_attr($align_field_id); ?>">
+                <span><?php esc_html_e('Button alignment', $this->text_domain); ?></span>
+                <select id="<?php echo esc_attr($align_field_id); ?>" name="<?php echo esc_attr($this->name('share_inline_align')); ?>">
+                    <option value="left" <?php selected($inline_align, 'left'); ?>><?php esc_html_e('Left', $this->text_domain); ?></option>
+                    <option value="center" <?php selected($inline_align, 'center'); ?>><?php esc_html_e('Center', $this->text_domain); ?></option>
+                    <option value="right" <?php selected($inline_align, 'right'); ?>><?php esc_html_e('Right', $this->text_domain); ?></option>
+                    <option value="space-between" <?php selected($inline_align, 'space-between'); ?>><?php esc_html_e('Justify', $this->text_domain); ?></option>
                 </select>
             </label>
             <fieldset class="your-share-field-stack">
