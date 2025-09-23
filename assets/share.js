@@ -4,6 +4,12 @@
   var analyticsConfig = window.yourShareAnalytics || {};
   var reactionStore = null;
   var mediaConfig = window.yourShareMedia || {};
+  var sheetState = null;
+  var openPaletteState = null;
+  var interactionGranted = false;
+  var deferredSdkLoaders = [];
+  var sheetConfettiKey = 'yourShareSheetConfetti';
+  var sheetCelebrated = false;
 
   var overlaySelectors = Array.isArray(mediaConfig.selectors) ? mediaConfig.selectors : [];
   overlaySelectors = overlaySelectors.map(function(selector){
@@ -119,6 +125,49 @@
     for (var i = 0; i < overlayStates.length; i++){
       if (overlayStates[i] !== except){
         closeOverlay(overlayStates[i]);
+      }
+    }
+  }
+
+  function runDeferredSdkLoaders(){
+    while (deferredSdkLoaders.length){
+      var loader = deferredSdkLoaders.shift();
+      if (typeof loader === 'function'){
+        try {
+          loader();
+        } catch (error) {
+          // ignore loader errors
+        }
+      }
+    }
+  }
+
+  function deferSdkLoader(fn){
+    if (typeof fn !== 'function'){
+      return;
+    }
+    if (interactionGranted){
+      try {
+        fn();
+      } catch (error) {
+        // ignore loader errors
+      }
+      return;
+    }
+    deferredSdkLoaders.push(fn);
+  }
+
+  function grantInteractionConsent(){
+    if (interactionGranted){
+      return;
+    }
+    interactionGranted = true;
+    runDeferredSdkLoaders();
+    if (typeof window.CustomEvent === 'function'){
+      try {
+        document.dispatchEvent(new CustomEvent('yourShareConsentGranted'));
+      } catch (error) {
+        // ignore custom event issues
       }
     }
   }
@@ -442,8 +491,11 @@
         return;
       }
 
+      var visible = total > 0;
       badge.textContent = formatCount(total);
       badge.setAttribute('data-value', total);
+      badge.setAttribute('data-visible', visible ? '1' : '0');
+      badge.setAttribute('aria-hidden', visible ? 'false' : 'true');
     });
 
     var totalValue = wrapper.querySelector('[data-your-share-total-value]');
@@ -1101,6 +1153,16 @@
     }
   }
 
+  function triggerFirstReactionCelebration(button){
+    if (!button){
+      return;
+    }
+    button.classList.add('is-first-reaction');
+    window.setTimeout(function(){
+      button.classList.remove('is-first-reaction');
+    }, 700);
+  }
+
   function updateReactionCounts(bar, counts){
     if (!bar || !counts){
       return;
@@ -1114,7 +1176,11 @@
       }
       var target = button.querySelector('[data-your-share-reaction-count]');
       if (target){
+        var visible = value > 0;
         target.textContent = String(value);
+        target.setAttribute('data-visible', visible ? '1' : '0');
+        target.setAttribute('aria-hidden', visible ? 'false' : 'true');
+        button.classList.toggle('has-count', visible);
       }
     });
   }
@@ -1202,6 +1268,135 @@
       return;
     }
 
+    var paletteState = null;
+    var paletteToggle = bar.querySelector('[data-your-share-reaction-toggle]');
+    var palette = null;
+    var openPaletteFn = null;
+    var closePaletteFn = null;
+
+    if (paletteToggle){
+      var paletteId = paletteToggle.getAttribute('aria-controls') || '';
+      if (paletteId){
+        palette = document.getElementById(paletteId);
+      }
+      if (!palette){
+        palette = bar.querySelector('[data-your-share-reaction-palette]');
+      }
+    }
+
+    if (palette && paletteToggle){
+      paletteState = {
+        toggle: paletteToggle,
+        panel: palette,
+        open: false,
+        onDocumentClick: null,
+        onKeydown: null,
+        close: function(returnFocus){
+          if (closePaletteFn){
+            closePaletteFn(returnFocus);
+          }
+        }
+      };
+
+      closePaletteFn = function(returnFocus){
+        if (!paletteState.open){
+          return;
+        }
+        paletteState.open = false;
+        paletteToggle.setAttribute('aria-expanded', 'false');
+        paletteToggle.classList.remove('is-open');
+        palette.setAttribute('aria-hidden', 'true');
+        palette.setAttribute('hidden', 'hidden');
+        if (paletteState.onDocumentClick){
+          document.removeEventListener('click', paletteState.onDocumentClick);
+          paletteState.onDocumentClick = null;
+        }
+        if (paletteState.onKeydown){
+          document.removeEventListener('keydown', paletteState.onKeydown);
+          paletteState.onKeydown = null;
+        }
+        if (openPaletteState === paletteState){
+          openPaletteState = null;
+        }
+        if (returnFocus && paletteToggle.focus){
+          paletteToggle.focus({ preventScroll: true });
+        }
+      };
+
+      function handlePaletteDocument(event){
+        if (!palette.contains(event.target) && !paletteToggle.contains(event.target)){
+          closePaletteFn(false);
+        }
+      }
+
+      function handlePaletteKeydown(event){
+        if (!paletteState.open){
+          return;
+        }
+        if (event.key === 'Escape' || event.key === 'Esc'){
+          event.preventDefault();
+          closePaletteFn(true);
+          return;
+        }
+        if (event.key === 'Tab'){
+          var focusable = getFocusableElements(palette);
+          if (!focusable.length){
+            event.preventDefault();
+            palette.focus({ preventScroll: true });
+            return;
+          }
+          var first = focusable[0];
+          var last = focusable[focusable.length - 1];
+          var active = document.activeElement;
+          if (event.shiftKey){
+            if (active === first || !palette.contains(active)){
+              event.preventDefault();
+              last.focus({ preventScroll: true });
+            }
+          } else if (active === last){
+            event.preventDefault();
+            first.focus({ preventScroll: true });
+          }
+        }
+      }
+
+      openPaletteFn = function(){
+        if (paletteState.open){
+          return;
+        }
+        if (openPaletteState && openPaletteState.close){
+          openPaletteState.close(false);
+        }
+        openPaletteState = paletteState;
+        paletteState.open = true;
+        paletteToggle.setAttribute('aria-expanded', 'true');
+        paletteToggle.classList.add('is-open');
+        palette.removeAttribute('hidden');
+        palette.setAttribute('aria-hidden', 'false');
+        paletteState.onDocumentClick = handlePaletteDocument;
+        paletteState.onKeydown = handlePaletteKeydown;
+        document.addEventListener('click', handlePaletteDocument);
+        document.addEventListener('keydown', handlePaletteKeydown);
+        var focusable = getFocusableElements(palette);
+        if (focusable.length){
+          focusable[0].focus({ preventScroll: true });
+        } else if (palette.focus){
+          palette.focus({ preventScroll: true });
+        }
+      };
+
+      paletteState.close = closePaletteFn;
+
+      paletteToggle.addEventListener('click', function(event){
+        event.preventDefault();
+        if (paletteState.open){
+          closePaletteFn(true);
+        } else if (openPaletteFn){
+          openPaletteFn();
+        }
+      });
+    }
+
     var supportsFetch = typeof window.fetch === 'function';
     var initial = normalizeReactions(bar.getAttribute('data-user'));
     if (!initial.length){
@@ -1234,12 +1429,24 @@
     }
 
     var pending = false;
+    var firstCelebrated = initial.length > 0;
     bar.addEventListener('click', function(event){
+      var toggleTarget = event.target.closest('[data-your-share-reaction-toggle]');
+      if (toggleTarget && paletteState && paletteState.toggle === toggleTarget){
+        event.preventDefault();
+        if (paletteState.open){
+          closePaletteFn(true);
+        } else if (openPaletteFn){
+          openPaletteFn();
+        }
+        return;
+      }
       var target = event.target.closest('.waki-reaction');
       if (!target){
         return;
       }
       event.preventDefault();
+      grantInteractionConsent();
       var slug = target.getAttribute('data-reaction');
       if (!slug){
         return;
@@ -1259,8 +1466,14 @@
       } else {
         optimistic.push(slug);
       }
+      var celebrateFirst = !current.length && !isActive && !firstCelebrated;
+      if (celebrateFirst){
+        triggerFirstReactionCelebration(target);
+        firstCelebrated = true;
+      }
       highlightReactions(bar, optimistic);
       pending = true;
+      var fromPalette = paletteState && paletteState.panel && paletteState.panel.contains(target);
       sendReaction(postId, slug, intent).then(function(body){
         pending = false;
         if (body && body.counts){
@@ -1274,6 +1487,9 @@
         highlightReactions(bar, final);
         if (body && body.status === 'added'){
           trackReaction(bar, postId, slug);
+        }
+        if (fromPalette && paletteState && paletteState.close){
+          paletteState.close(false);
         }
       }).catch(function(error){
         pending = false;
@@ -1289,6 +1505,9 @@
             setStoredReactions(postId, locked);
             highlightReactions(bar, locked);
           }
+        }
+        if (fromPalette && paletteState && paletteState.close){
+          paletteState.close(false);
         }
       });
     });
@@ -1328,6 +1547,170 @@
     Array.prototype.forEach.call(reactionBars, toggle);
   }
 
+  function closeShareSheet(state, returnFocus){
+    if (!state){
+      state = sheetState;
+    }
+    if (!state){
+      return;
+    }
+    if (state.backdrop){
+      state.backdrop.removeEventListener('click', state.onBackdrop);
+      if (state.backdrop.parentNode){
+        state.backdrop.parentNode.removeChild(state.backdrop);
+      }
+    }
+    if (state.panel){
+      state.panel.setAttribute('hidden', 'hidden');
+      state.panel.setAttribute('aria-hidden', 'true');
+    }
+    if (state.wrapper){
+      state.wrapper.classList.remove('is-sheet-active');
+    }
+    if (state.button){
+      state.button.setAttribute('aria-expanded', 'false');
+      state.button.classList.remove('is-active');
+    }
+    document.removeEventListener('keydown', state.onKeydown);
+    if (sheetState === state){
+      sheetState = null;
+    }
+    if (returnFocus){
+      var target = state.button || state.previousFocus;
+      if (target && target.focus){
+        target.focus({ preventScroll: true });
+      }
+    }
+  }
+
+  function openShareSheet(wrapper, button, panel){
+    if (!panel){
+      return;
+    }
+    if (sheetState && sheetState.button === button){
+      closeShareSheet(sheetState, true);
+      return;
+    }
+    if (sheetState){
+      closeShareSheet(sheetState, false);
+    }
+    if (openPaletteState && openPaletteState.close){
+      openPaletteState.close(false);
+    }
+    button.setAttribute('aria-expanded', 'true');
+    button.classList.add('is-active');
+    panel.removeAttribute('hidden');
+    panel.setAttribute('aria-hidden', 'false');
+    wrapper.classList.add('is-sheet-active');
+
+    var previousFocus = document.activeElement;
+    var backdrop = document.createElement('div');
+    backdrop.className = 'waki-share-sheet-backdrop';
+    backdrop.setAttribute('data-your-share-sheet-backdrop', '1');
+    document.body.appendChild(backdrop);
+
+    var state = {
+      wrapper: wrapper,
+      button: button,
+      panel: panel,
+      backdrop: backdrop,
+      previousFocus: previousFocus,
+      onKeydown: null,
+      onBackdrop: null
+    };
+
+    state.onBackdrop = function(event){
+      event.preventDefault();
+      closeShareSheet(state, true);
+    };
+
+    state.onKeydown = function(event){
+      if (event.key === 'Escape' || event.key === 'Esc'){
+        event.preventDefault();
+        closeShareSheet(state, true);
+        return;
+      }
+      if (event.key === 'Tab'){
+        var focusable = getFocusableElements(panel);
+        if (!focusable.length){
+          event.preventDefault();
+          panel.focus({ preventScroll: true });
+          return;
+        }
+        var first = focusable[0];
+        var last = focusable[focusable.length - 1];
+        var active = document.activeElement;
+        if (event.shiftKey){
+          if (active === first || !panel.contains(active)){
+            event.preventDefault();
+            last.focus({ preventScroll: true });
+          }
+        } else if (active === last){
+          event.preventDefault();
+          first.focus({ preventScroll: true });
+        }
+      }
+    };
+
+    backdrop.addEventListener('click', state.onBackdrop);
+    document.addEventListener('keydown', state.onKeydown);
+
+    sheetState = state;
+
+    var focusable = getFocusableElements(panel);
+    if (focusable.length){
+      focusable[0].focus({ preventScroll: true });
+    } else if (panel.focus){
+      panel.focus({ preventScroll: true });
+    }
+  }
+
+  function celebrateSheetShare(wrapper){
+    if (!wrapper){
+      return;
+    }
+    try {
+      if (window.sessionStorage && sessionStorage.getItem(sheetConfettiKey) === '1'){
+        return;
+      }
+      if (window.sessionStorage){
+        sessionStorage.setItem(sheetConfettiKey, '1');
+      }
+    } catch (error) {
+      // sessionStorage may be unavailable
+    }
+    if (sheetCelebrated){
+      return;
+    }
+    sheetCelebrated = true;
+    var host = wrapper;
+    if (sheetState && sheetState.wrapper === wrapper && sheetState.panel){
+      host = sheetState.panel;
+    }
+    if (!host){
+      return;
+    }
+    var confetti = document.createElement('div');
+    confetti.className = 'waki-share-confetti';
+    confetti.setAttribute('aria-hidden', 'true');
+    for (var i = 0; i < 18; i++){
+      var piece = document.createElement('span');
+      piece.className = 'waki-share-confetti__piece';
+      piece.style.setProperty('--waki-confetti-x', (Math.random() * 160 - 80) + 'px');
+      piece.style.setProperty('--waki-confetti-delay', Math.round(Math.random() * 120) + 'ms');
+      piece.style.setProperty('--waki-confetti-duration', Math.round(900 + Math.random() * 400) + 'ms');
+      piece.style.setProperty('--waki-confetti-rotate', Math.round(Math.random() * 720 - 360) + 'deg');
+      piece.style.setProperty('--waki-confetti-hue', Math.round(Math.random() * 360));
+      confetti.appendChild(piece);
+    }
+    host.appendChild(confetti);
+    window.setTimeout(function(){
+      if (confetti && confetti.parentNode){
+        confetti.parentNode.removeChild(confetti);
+      }
+    }, 1800);
+  }
+
   document.addEventListener('click', function(event){
     if (overlayStates.length){
       overlayStates.forEach(function(state){
@@ -1351,22 +1734,20 @@
       return;
     }
 
+    var fromSheet = !!button.closest('.waki-share-extra');
+    grantInteractionConsent();
+
     if (button.hasAttribute('data-share-toggle')){
       event.preventDefault();
-      var expanded = button.getAttribute('aria-expanded') === 'true';
       var targetId = button.getAttribute('aria-controls') || '';
       var panel = targetId ? document.getElementById(targetId) : wrapper.querySelector('[data-your-share-extra]');
-      expanded = !expanded;
-      button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      button.classList.toggle('is-active', expanded);
-      if (panel){
-        if (expanded){
-          panel.removeAttribute('hidden');
-          panel.setAttribute('aria-hidden', 'false');
-        } else {
-          panel.setAttribute('hidden', 'hidden');
-          panel.setAttribute('aria-hidden', 'true');
-        }
+      if (!panel){
+        return;
+      }
+      if (sheetState && sheetState.button === button){
+        closeShareSheet(sheetState, true);
+      } else {
+        openShareSheet(wrapper, button, panel);
       }
       return;
     }
@@ -1382,12 +1763,18 @@
       event.preventDefault();
       trackShare(wrapper, network, context.url);
       handleCopy(context.url, context.snippet);
+      if (fromSheet){
+        celebrateSheetShare(wrapper);
+      }
       return;
     }
 
     if (network === 'native') {
       event.preventDefault();
       trackShare(wrapper, network, context.url);
+      if (fromSheet){
+        celebrateSheetShare(wrapper);
+      }
       if (navigator.share) {
         var shareData = {
           title: context.title || document.title,
@@ -1406,22 +1793,52 @@
     var href = button.getAttribute('href') || '';
     if (href.indexOf('mailto:') === 0 || href.indexOf('wa.me') !== -1) {
       trackShare(wrapper, network, href);
+      if (fromSheet){
+        celebrateSheetShare(wrapper);
+      }
       return;
     }
 
     event.preventDefault();
     trackShare(wrapper, network, href);
+    if (fromSheet){
+      celebrateSheetShare(wrapper);
+    }
     openPopup(href);
   });
 
   window.addEventListener('resize', updateFloatingVisibility);
+
+  function attachConsentListener(type){
+    var onceHandler = function(){
+      document.removeEventListener(type, onceHandler);
+      grantInteractionConsent();
+    };
+    try {
+      document.addEventListener(type, onceHandler, { once: true });
+    } catch (error) {
+      document.addEventListener(type, onceHandler);
+    }
+  }
+
+  attachConsentListener('pointerdown');
+  attachConsentListener('keydown');
+
+  window.yourShareConsent = window.yourShareConsent || {};
+  window.yourShareConsent.register = function(fn){
+    deferSdkLoader(fn);
+  };
+  window.yourShareConsent.grant = grantInteractionConsent;
+  window.yourShareConsent.granted = function(){
+    return interactionGranted;
+  };
 
   function onReady(){
     hydrateGeo();
     updateFloatingVisibility();
     initReactions();
     initMediaOverlays();
-    hydrateCounts();
+    deferSdkLoader(hydrateCounts);
   }
 
   if (document.readyState === 'loading'){
