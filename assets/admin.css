@@ -385,7 +385,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
 }
 
@@ -393,6 +393,55 @@
   display: inline-flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+.your-share-analytics__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.your-share-analytics__range-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.your-share-analytics__range-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.your-share-analytics__range-input input[type="date"] {
+  min-width: 160px;
+}
+
+.your-share-analytics__range-separator {
+  font-size: 1rem;
+  line-height: 2.2;
+  color: #4b5563;
+}
+
+.your-share-analytics__range-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.your-share-analytics__range-display {
+  margin: 0;
+  color: #4b5563;
+}
+
+.your-share-analytics--custom-range .your-share-analytics__ranges .button {
+  opacity: 0.7;
+}
+
+.your-share-analytics--custom-range .your-share-analytics__ranges .button.is-active {
+  opacity: 1;
 }
 
 .your-share-analytics__summary {
@@ -515,6 +564,10 @@
   .your-share-analytics__toolbar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .your-share-analytics__range-picker {
+    align-items: stretch;
   }
 
   .your-share-analytics__summary {

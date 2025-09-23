@@ -175,6 +175,11 @@
     var tools = qs(container, '[data-your-share-analytics-tools]');
     var notice = tools ? qs(tools, '.your-share-analytics__notice') : null;
     var rangeButtons = qsa(container, '[data-your-share-analytics-ranges] [data-range]');
+    var rangeDisplay = qs(container, '[data-your-share-analytics-range-display]');
+    var rangeStartInput = qs(container, '[data-your-share-analytics-range-start]');
+    var rangeEndInput = qs(container, '[data-your-share-analytics-range-end]');
+    var rangeApplyButton = qs(container, '[data-your-share-analytics-range-apply]');
+    var rangeClearButton = qs(container, '[data-your-share-analytics-range-clear]');
     var topLists = {
       posts: qs(container, '[data-your-share-analytics-top="posts"]'),
       networks: qs(container, '[data-your-share-analytics-top="networks"]'),
@@ -195,9 +200,10 @@
     }
 
     var state = {
-      data: null,
       chart: null,
-      range: '7'
+      activeQuickRange: '7',
+      usingCustomRange: false,
+      data: null
     };
 
     function restRoot(){
@@ -211,8 +217,8 @@
       return rest;
     }
 
-    function setSummary(rangeData){
-      if (!rangeData){
+    function setSummary(series){
+      if (!series){
         if (summaryShare){ summaryShare.textContent = '0'; }
         if (summaryReaction){ summaryReaction.textContent = '0'; }
         if (emptyMessage){ emptyMessage.hidden = false; }
@@ -220,15 +226,16 @@
       }
 
       if (summaryShare){
-        summaryShare.textContent = formatNumber(rangeData.totals && rangeData.totals.share ? rangeData.totals.share : 0);
+        summaryShare.textContent = formatNumber(series.totals && series.totals.share ? series.totals.share : 0);
       }
 
       if (summaryReaction){
-        summaryReaction.textContent = formatNumber(rangeData.totals && rangeData.totals.reaction ? rangeData.totals.reaction : 0);
+        summaryReaction.textContent = formatNumber(series.totals && series.totals.reaction ? series.totals.reaction : 0);
       }
 
       if (emptyMessage){
-        var hasData = rangeData.totals && (rangeData.totals.share || rangeData.totals.reaction);
+        var totals = series.totals || {};
+        var hasData = totals.share || totals.reaction;
         emptyMessage.hidden = !!hasData;
       }
     }
@@ -311,7 +318,8 @@
       });
     }
 
-    function datasetConfig(rangeData){
+    function datasetConfig(seriesData){
+      var data = seriesData || {};
       var palette = {
         share: '#2563eb',
         reaction: '#f97316'
@@ -319,11 +327,11 @@
       var shareLabel = adminConfig.analytics && adminConfig.analytics.i18n ? (adminConfig.analytics.i18n.share || 'Shares') : 'Shares';
       var reactionLabel = adminConfig.analytics && adminConfig.analytics.i18n ? (adminConfig.analytics.i18n.reaction || 'Reactions') : 'Reactions';
       return {
-        labels: rangeData.labels || [],
+        labels: data.labels || [],
         datasets: [
           {
             label: shareLabel,
-            data: rangeData.share || [],
+            data: data.share || [],
             borderColor: palette.share,
             backgroundColor: 'rgba(37, 99, 235, 0.15)',
             tension: 0.35,
@@ -332,7 +340,7 @@
           },
           {
             label: reactionLabel,
-            data: rangeData.reaction || [],
+            data: data.reaction || [],
             borderColor: palette.reaction,
             backgroundColor: 'rgba(249, 115, 22, 0.15)',
             tension: 0.35,
@@ -343,11 +351,8 @@
       };
     }
 
-    function renderChart(rangeData){
-      if (!rangeData){
-        return;
-      }
-      var config = datasetConfig(rangeData);
+    function renderChart(seriesData){
+      var config = datasetConfig(seriesData);
       if (!state.chart){
         state.chart = new Chart(chartCanvas.getContext('2d'), {
           type: 'line',
@@ -376,24 +381,10 @@
       }
     }
 
-    function activateRange(range){
-      if (!state.data || !state.data.series || !state.data.series[range]){
-        return;
-      }
-      state.range = range;
-      rangeButtons.forEach(function(button){
-        var value = button.getAttribute('data-range');
-        button.classList.toggle('is-active', value === range);
-      });
-      var rangeData = state.data.series[range];
-      renderChart(rangeData);
-      setSummary(rangeData);
-    }
-
-    function applyTopLists(data){
-      populateList('posts', data.top && data.top.posts ? data.top.posts : []);
-      populateList('networks', data.top && data.top.networks ? data.top.networks : []);
-      populateList('devices', data.top && data.top.devices ? data.top.devices : []);
+    function applyTopLists(top){
+      populateList('posts', top && top.posts ? top.posts : []);
+      populateList('networks', top && top.networks ? top.networks : []);
+      populateList('devices', top && top.devices ? top.devices : []);
     }
 
     function setToolsEnabled(enabled){
@@ -408,23 +399,91 @@
       }
     }
 
-    function handleResponse(data){
-      state.data = data;
-      updateUpdated(data.generated_at || '');
-      applyTopLists(data);
-      var enabled = !!data.enabled;
-      setToolsEnabled(enabled);
-      if (!enabled){
-        setSummary(null);
-        if (notice){
-          notice.style.display = '';
-        }
+    function updateRangeDisplay(range){
+      if (!rangeDisplay){
         return;
       }
-      activateRange(state.range);
+      if (!range || !range.label){
+        rangeDisplay.hidden = true;
+        rangeDisplay.textContent = '';
+        return;
+      }
+      var template = adminConfig.analytics && adminConfig.analytics.i18n && adminConfig.analytics.i18n.range ? adminConfig.analytics.i18n.range : 'Showing %s';
+      rangeDisplay.textContent = template.replace('%s', range.label);
+      rangeDisplay.hidden = false;
     }
 
-    function loadData(){
+    function setActiveRangeButton(range){
+      var target = String(range || '');
+      var isCustom = !!state.usingCustomRange;
+      container.classList.toggle('your-share-analytics--custom-range', isCustom);
+      rangeButtons.forEach(function(button){
+        var value = button.getAttribute('data-range');
+        button.classList.toggle('is-active', !isCustom && value === target);
+      });
+    }
+
+    function handleResponse(data){
+      state.data = data || null;
+      updateUpdated(data && data.generated_at ? data.generated_at : '');
+      var enabled = !!(data && data.enabled);
+      setToolsEnabled(enabled);
+
+      var series = data && data.series ? data.series : null;
+      if (!enabled || !series){
+        setSummary(null);
+      } else {
+        setSummary(series);
+      }
+      renderChart(series);
+
+      applyTopLists(data && data.top ? data.top : {});
+
+      var rangeMeta = data && data.range ? data.range : null;
+      if (rangeMeta){
+        state.usingCustomRange = !!rangeMeta.is_custom;
+        if (!state.usingCustomRange && rangeMeta.days){
+          state.activeQuickRange = String(rangeMeta.days);
+        }
+      } else {
+        state.usingCustomRange = false;
+      }
+
+      setActiveRangeButton(state.activeQuickRange);
+      updateRangeDisplay(rangeMeta);
+
+      if (rangeMeta && rangeMeta.is_custom && series){
+        if (rangeStartInput && series.start){
+          rangeStartInput.value = series.start;
+        }
+        if (rangeEndInput && series.end){
+          rangeEndInput.value = series.end;
+        }
+      }
+
+      if (!series && emptyMessage){
+        emptyMessage.hidden = false;
+      }
+    }
+
+    function buildQuery(params){
+      var search = new URLSearchParams();
+      if (params){
+        if (params.days){
+          search.set('days', params.days);
+        }
+        if (params.start){
+          search.set('start', params.start);
+        }
+        if (params.end){
+          search.set('end', params.end);
+        }
+      }
+      var query = search.toString();
+      return query ? '?' + query : '';
+    }
+
+    function loadData(params){
       var rootUrl = restRoot();
       if (!rootUrl){
         if (emptyMessage){
@@ -436,7 +495,11 @@
       if (adminConfig.analytics && adminConfig.analytics.rest && adminConfig.analytics.rest.nonce){
         headers['X-WP-Nonce'] = adminConfig.analytics.rest.nonce;
       }
-      fetch(rootUrl + '/analytics/report', {
+      if (emptyMessage){
+        emptyMessage.hidden = true;
+      }
+      var url = rootUrl + '/analytics/report' + buildQuery(params);
+      fetch(url, {
         credentials: 'same-origin',
         headers: headers
       }).then(function(response){
@@ -454,15 +517,90 @@
       });
     }
 
+    function applyCustomRange(){
+      var start = rangeStartInput ? rangeStartInput.value : '';
+      var end = rangeEndInput ? rangeEndInput.value : '';
+      if (!start && !end){
+        return;
+      }
+      if (start && !end){
+        end = start;
+      } else if (end && !start){
+        start = end;
+      }
+      if (start && end && start > end){
+        var tmp = start;
+        start = end;
+        end = tmp;
+      }
+      state.usingCustomRange = true;
+      setActiveRangeButton(state.activeQuickRange);
+      loadData({ start: start, end: end });
+    }
+
+    function clearCustomRange(){
+      if (rangeStartInput){
+        rangeStartInput.value = '';
+      }
+      if (rangeEndInput){
+        rangeEndInput.value = '';
+      }
+      if (!state.usingCustomRange){
+        return false;
+      }
+      state.usingCustomRange = false;
+      setActiveRangeButton(state.activeQuickRange);
+      loadData({ days: state.activeQuickRange });
+      return true;
+    }
+
     rangeButtons.forEach(function(button){
       button.addEventListener('click', function(){
         var range = button.getAttribute('data-range');
-        activateRange(range);
+        if (!range){
+          return;
+        }
+        state.activeQuickRange = String(range);
+        state.usingCustomRange = false;
+        setActiveRangeButton(state.activeQuickRange);
+        loadData({ days: range });
       });
     });
 
+    if (rangeApplyButton){
+      rangeApplyButton.addEventListener('click', applyCustomRange);
+    }
+
+    if (rangeStartInput){
+      rangeStartInput.addEventListener('keydown', function(event){
+        if (event.key === 'Enter'){
+          event.preventDefault();
+          applyCustomRange();
+        }
+      });
+    }
+
+    if (rangeEndInput){
+      rangeEndInput.addEventListener('keydown', function(event){
+        if (event.key === 'Enter'){
+          event.preventDefault();
+          applyCustomRange();
+        }
+      });
+    }
+
+    if (rangeClearButton){
+      rangeClearButton.addEventListener('click', function(){
+        var cleared = clearCustomRange();
+        if (cleared){
+          updateRangeDisplay(null);
+        }
+      });
+    }
+
     setToolsEnabled(adminConfig.analytics ? !!adminConfig.analytics.enabled : true);
-    loadData();
+    setActiveRangeButton(state.activeQuickRange);
+    loadData({ days: state.activeQuickRange });
   }
 
   function setupTabs(root){
