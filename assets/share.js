@@ -1563,6 +1563,9 @@
     if (state.panel){
       state.panel.setAttribute('hidden', 'hidden');
       state.panel.setAttribute('aria-hidden', 'true');
+      if (typeof state.panel.hidden !== 'undefined'){
+        state.panel.hidden = true;
+      }
     }
     if (state.wrapper){
       state.wrapper.classList.remove('is-sheet-active');
@@ -1601,6 +1604,9 @@
     button.classList.add('is-active');
     panel.removeAttribute('hidden');
     panel.setAttribute('aria-hidden', 'false');
+    if (typeof panel.hidden !== 'undefined'){
+      panel.hidden = false;
+    }
     wrapper.classList.add('is-sheet-active');
 
     var previousFocus = document.activeElement;
