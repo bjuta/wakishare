@@ -2,6 +2,9 @@
 
 namespace YourShare;
 
+use DateInterval;
+use DatePeriod;
+use DateTimeImmutable;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -86,6 +89,23 @@ class Analytics
                 'permission_callback' => function () {
                     return current_user_can('manage_options');
                 },
+                'args'                => [
+                    'days'  => [
+                        'required'          => false,
+                        'type'              => 'integer',
+                        'sanitize_callback' => 'absint',
+                    ],
+                    'start' => [
+                        'required'          => false,
+                        'type'              => 'string',
+                        'sanitize_callback' => [$this, 'sanitize_date_param'],
+                    ],
+                    'end'   => [
+                        'required'          => false,
+                        'type'              => 'string',
+                        'sanitize_callback' => [$this, 'sanitize_date_param'],
+                    ],
+                ],
             ]
         );
     }
@@ -160,23 +180,39 @@ class Analytics
         ], 200);
     }
 
-    public function handle_report(): WP_REST_Response
+    public function handle_report(WP_REST_Request $request): WP_REST_Response
     {
         $options = $this->options->all();
         $enabled = !empty($options['analytics_events']);
 
+        $range = $this->resolve_requested_range($request);
+
+        $series = $this->time_series_range($range['start'], $range['end']);
+
         $report = [
-            'enabled' => $enabled,
-            'series'  => [
-                '7'  => $this->time_series(7),
-                '30' => $this->time_series(30),
-                '90' => $this->time_series(90),
+            'enabled'      => $enabled,
+            'series'       => $series,
+            'top'          => $this->top_lists($range['start'], $range['end']),
+            'range'        => [
+                'start'     => $series['start'],
+                'end'       => $series['end'],
+                'label'     => $this->format_range_label($range['start'], $range['end']),
+                'days'      => $range['days'],
+                'is_custom' => $range['is_custom'],
             ],
-            'top'     => $this->top_lists(),
             'generated_at' => current_time('mysql'),
         ];
 
         return new WP_REST_Response($report, 200);
+    }
+
+    public function sanitize_date_param($value): string
+    {
+        if (!is_scalar($value)) {
+            return '';
+        }
+
+        return sanitize_text_field((string) $value);
     }
 
     public function handle_export_request(): void
@@ -377,11 +413,110 @@ class Analytics
         );
     }
 
-    private function time_series(int $days): array
+    private function resolve_requested_range(WP_REST_Request $request): array
+    {
+        $start_param = $request->get_param('start');
+        $end_param   = $request->get_param('end');
+
+        $custom_range = $this->resolve_range($start_param, $end_param);
+
+        if ($custom_range) {
+            return $custom_range + [
+                'days'      => $this->calculate_days($custom_range['start'], $custom_range['end']),
+                'is_custom' => true,
+            ];
+        }
+
+        $days = $this->sanitize_days($request->get_param('days'));
+
+        if (!$days) {
+            $days = 7;
+        }
+
+        $range = $this->range_from_days($days);
+
+        return $range + [
+            'days'      => $days,
+            'is_custom' => false,
+        ];
+    }
+
+    private function sanitize_days($value): int
+    {
+        $days = absint($value);
+
+        if ($days < 1) {
+            return 0;
+        }
+
+        return min($days, 365);
+    }
+
+    private function resolve_range(?string $start = null, ?string $end = null): ?array
+    {
+        $start = $start !== null ? trim($start) : '';
+        $end   = $end !== null ? trim($end) : '';
+
+        if ($start === '' && $end === '') {
+            return null;
+        }
+
+        $timezone = wp_timezone();
+
+        $start_date = $start !== '' ? DateTimeImmutable::createFromFormat('Y-m-d', $start, $timezone) : null;
+        $end_date   = $end !== '' ? DateTimeImmutable::createFromFormat('Y-m-d', $end, $timezone) : null;
+
+        if ($start_date && $start_date->format('Y-m-d') !== $start) {
+            $start_date = null;
+        }
+
+        if ($end_date && $end_date->format('Y-m-d') !== $end) {
+            $end_date = null;
+        }
+
+        if ($start_date && !$end_date) {
+            $end_date = $start_date;
+        } elseif ($end_date && !$start_date) {
+            $start_date = $end_date;
+        }
+
+        if (!$start_date || !$end_date) {
+            return null;
+        }
+
+        if ($end_date < $start_date) {
+            [$start_date, $end_date] = [$end_date, $start_date];
+        }
+
+        return [
+            'start' => $start_date->setTime(0, 0, 0),
+            'end'   => $end_date->setTime(23, 59, 59),
+        ];
+    }
+
+    private function range_from_days(int $days): array
     {
         $days = max(1, $days);
+        $timezone = wp_timezone();
 
-        $dates = $this->date_range($days);
+        $current_timestamp = current_time('timestamp');
+        $end = (new DateTimeImmutable('@' . $current_timestamp))->setTimezone($timezone)->setTime(23, 59, 59);
+        $start = $end->modify('-' . ($days - 1) . ' days')->setTime(0, 0, 0);
+
+        return [
+            'start' => $start,
+            'end'   => $end,
+        ];
+    }
+
+    private function calculate_days(DateTimeImmutable $start, DateTimeImmutable $end): int
+    {
+        return (int) $start->diff($end)->format('%a') + 1;
+    }
+
+    private function time_series_range(DateTimeImmutable $start, DateTimeImmutable $end): array
+    {
+        $dates = $this->date_range_between($start, $end);
         $series = [
             'share'    => array_fill_keys($dates, 0),
             'reaction' => array_fill_keys($dates, 0),
@@ -391,14 +526,12 @@ class Analytics
 
         if ($wpdb instanceof wpdb) {
             $table = $this->table_name($wpdb);
-            $now   = current_time('mysql');
-            $interval = max(0, $days - 1);
 
             $results = $wpdb->get_results(
                 $wpdb->prepare(
-                    "SELECT DATE(created_at) as day, event_type, COUNT(*) as total FROM {$table} WHERE created_at >= DATE_SUB(%s, INTERVAL %d DAY) GROUP BY DATE(created_at), event_type",
-                    $now,
-                    $interval
+                    "SELECT DATE(created_at) as day, event_type, COUNT(*) as total FROM {$table} WHERE created_at BETWEEN %s AND %s GROUP BY DATE(created_at), event_type",
+                    $start->format('Y-m-d H:i:s'),
+                    $end->format('Y-m-d H:i:s')
                 ),
                 ARRAY_A
             );
@@ -430,19 +563,54 @@ class Analytics
                 'share'    => array_sum($series['share']),
                 'reaction' => array_sum($series['reaction']),
             ],
+            'start'    => $start->setTime(0, 0, 0)->format('Y-m-d'),
+            'end'      => $end->setTime(0, 0, 0)->format('Y-m-d'),
         ];
     }
 
-    private function top_lists(): array
+    private function date_range_between(DateTimeImmutable $start, DateTimeImmutable $end): array
+    {
+        $start_day = $start->setTime(0, 0, 0);
+        $end_day   = $end->setTime(0, 0, 0);
+
+        if ($end_day < $start_day) {
+            [$start_day, $end_day] = [$end_day, $start_day];
+        }
+
+        $period = new DatePeriod($start_day, new DateInterval('P1D'), $end_day->modify('+1 day'));
+
+        $dates = [];
+
+        foreach ($period as $date) {
+            $dates[] = $date->format('Y-m-d');
+        }
+
+        return $dates;
+    }
+
+    private function top_lists(DateTimeImmutable $start, DateTimeImmutable $end): array
     {
         return [
-            'posts'    => $this->top_posts(),
-            'networks' => $this->top_networks(),
-            'devices'  => $this->top_devices(),
+            'posts'    => $this->top_posts($start, $end),
+            'networks' => $this->top_networks($start, $end),
+            'devices'  => $this->top_devices($start, $end),
         ];
     }
 
-    private function top_posts(): array
+    private function format_range_label(DateTimeImmutable $start, DateTimeImmutable $end): string
+    {
+        $format = get_option('date_format', 'M j, Y');
+        $start_label = wp_date($format, $start->getTimestamp());
+        $end_label   = wp_date($format, $end->getTimestamp());
+
+        if ($start_label === $end_label) {
+            return $start_label;
+        }
+
+        return sprintf('%s – %s', $start_label, $end_label);
+    }
+
+    private function top_posts(DateTimeImmutable $start, DateTimeImmutable $end): array
     {
         global $wpdb;
 
@@ -451,14 +619,11 @@ class Analytics
         }
 
         $table    = $this->table_name($wpdb);
-        $now      = current_time('mysql');
-        $interval = 29;
-
         $rows = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT post_id, COUNT(*) as total FROM {$table} WHERE post_id > 0 AND created_at >= DATE_SUB(%s, INTERVAL %d DAY) GROUP BY post_id ORDER BY total DESC LIMIT 5",
-                $now,
-                $interval
+                "SELECT post_id, COUNT(*) as total FROM {$table} WHERE post_id > 0 AND created_at BETWEEN %s AND %s GROUP BY post_id ORDER BY total DESC LIMIT 5",
+                $start->format('Y-m-d H:i:s'),
+                $end->format('Y-m-d H:i:s')
             ),
             ARRAY_A
         );
@@ -491,7 +656,7 @@ class Analytics
         return $output;
     }
 
-    private function top_networks(): array
+    private function top_networks(DateTimeImmutable $start, DateTimeImmutable $end): array
     {
         global $wpdb;
 
@@ -500,15 +665,12 @@ class Analytics
         }
 
         $table    = $this->table_name($wpdb);
-        $now      = current_time('mysql');
-        $interval = 29;
-
         $rows = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT network, COUNT(*) as total FROM {$table} WHERE event_type = %s AND network <> '' AND created_at >= DATE_SUB(%s, INTERVAL %d DAY) GROUP BY network ORDER BY total DESC LIMIT 5",
+                "SELECT network, COUNT(*) as total FROM {$table} WHERE event_type = %s AND network <> '' AND created_at BETWEEN %s AND %s GROUP BY network ORDER BY total DESC LIMIT 5",
                 'share',
-                $now,
-                $interval
+                $start->format('Y-m-d H:i:s'),
+                $end->format('Y-m-d H:i:s')
             ),
             ARRAY_A
         );
@@ -534,7 +696,7 @@ class Analytics
         return $output;
     }
 
-    private function top_devices(): array
+    private function top_devices(DateTimeImmutable $start, DateTimeImmutable $end): array
     {
         global $wpdb;
 
@@ -543,15 +705,12 @@ class Analytics
         }
 
         $table    = $this->table_name($wpdb);
-        $now      = current_time('mysql');
-        $interval = 29;
-
         $rows = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT device, COUNT(*) as total FROM {$table} WHERE event_type = %s AND device <> '' AND created_at >= DATE_SUB(%s, INTERVAL %d DAY) GROUP BY device ORDER BY total DESC",
+                "SELECT device, COUNT(*) as total FROM {$table} WHERE event_type = %s AND device <> '' AND created_at BETWEEN %s AND %s GROUP BY device ORDER BY total DESC",
                 'share',
-                $now,
-                $interval
+                $start->format('Y-m-d H:i:s'),
+                $end->format('Y-m-d H:i:s')
             ),
             ARRAY_A
         );
@@ -591,19 +750,6 @@ class Analytics
         ];
 
         return $labels[$device] ?? ucfirst($device);
-    }
-
-    private function date_range(int $days): array
-    {
-        $days = max(1, $days);
-        $dates = [];
-        $timestamp = current_time('timestamp');
-
-        for ($i = $days - 1; $i >= 0; $i--) {
-            $dates[] = wp_date('Y-m-d', $timestamp - ($i * DAY_IN_SECONDS));
-        }
-
-        return $dates;
     }
 
     private function get_all_events(): array

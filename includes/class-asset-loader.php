@@ -156,6 +156,7 @@ class Asset_Loader
                         'disabled' => __('Event logging is disabled. Enable tracking to populate analytics.', $this->text_domain),
                         'error'    => __('Unable to load analytics data. Please try again.', $this->text_domain),
                         'updated'  => __('Last updated %s', $this->text_domain),
+                        'range'    => __('Showing %s', $this->text_domain),
                         'share'    => __('Shares', $this->text_domain),
                         'reaction' => __('Reactions', $this->text_domain),
                     ],

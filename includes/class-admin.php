@@ -1348,10 +1348,32 @@ class Admin
         <div class="your-share-analytics" data-your-share-analytics data-enabled="<?php echo esc_attr($enabled ? '1' : '0'); ?>">
             <div class="your-share-analytics__chart">
                 <div class="your-share-analytics__toolbar">
-                    <div class="your-share-analytics__ranges" data-your-share-analytics-ranges>
-                        <button type="button" class="button button-secondary is-active" data-range="7"><?php esc_html_e('7 days', $this->text_domain); ?></button>
-                        <button type="button" class="button button-secondary" data-range="30"><?php esc_html_e('30 days', $this->text_domain); ?></button>
-                        <button type="button" class="button button-secondary" data-range="90"><?php esc_html_e('90 days', $this->text_domain); ?></button>
+                    <div class="your-share-analytics__controls">
+                        <div class="your-share-analytics__ranges" data-your-share-analytics-ranges>
+                            <button type="button" class="button button-secondary is-active" data-range="7"><?php esc_html_e('7 days', $this->text_domain); ?></button>
+                            <button type="button" class="button button-secondary" data-range="30"><?php esc_html_e('30 days', $this->text_domain); ?></button>
+                            <button type="button" class="button button-secondary" data-range="90"><?php esc_html_e('90 days', $this->text_domain); ?></button>
+                        </div>
+                        <div class="your-share-analytics__range-picker" data-your-share-analytics-range-picker>
+                            <div class="your-share-analytics__range-input">
+                                <label>
+                                    <span><?php esc_html_e('Start date', $this->text_domain); ?></span>
+                                    <input type="date" data-your-share-analytics-range-start>
+                                </label>
+                            </div>
+                            <span class="your-share-analytics__range-separator" aria-hidden="true">&ndash;</span>
+                            <div class="your-share-analytics__range-input">
+                                <label>
+                                    <span><?php esc_html_e('End date', $this->text_domain); ?></span>
+                                    <input type="date" data-your-share-analytics-range-end>
+                                </label>
+                            </div>
+                            <div class="your-share-analytics__range-actions">
+                                <button type="button" class="button button-secondary" data-your-share-analytics-range-apply><?php esc_html_e('Apply', $this->text_domain); ?></button>
+                                <button type="button" class="button button-link" data-your-share-analytics-range-clear><?php esc_html_e('Clear', $this->text_domain); ?></button>
+                            </div>
+                        </div>
+                        <p class="description your-share-analytics__range-display" data-your-share-analytics-range-display hidden></p>
                     </div>
                     <div class="your-share-analytics__summary" data-your-share-analytics-summary>
                         <div>
@@ -1374,17 +1396,17 @@ class Admin
             </div>
             <div class="your-share-analytics__lists">
                 <div class="your-share-analytics__card">
-                    <h4><?php esc_html_e('Top posts (30 days)', $this->text_domain); ?></h4>
+                    <h4><?php esc_html_e('Top posts', $this->text_domain); ?></h4>
                     <ol data-your-share-analytics-top="posts"></ol>
                     <p class="description" data-your-share-analytics-top-empty="posts" hidden><?php esc_html_e('No posts have recorded events in this window.', $this->text_domain); ?></p>
                 </div>
                 <div class="your-share-analytics__card">
-                    <h4><?php esc_html_e('Top networks (30 days)', $this->text_domain); ?></h4>
+                    <h4><?php esc_html_e('Top networks', $this->text_domain); ?></h4>
                     <ol data-your-share-analytics-top="networks"></ol>
                     <p class="description" data-your-share-analytics-top-empty="networks" hidden><?php esc_html_e('Events have not been attributed to share networks yet.', $this->text_domain); ?></p>
                 </div>
                 <div class="your-share-analytics__card">
-                    <h4><?php esc_html_e('Top devices (30 days)', $this->text_domain); ?></h4>
+                    <h4><?php esc_html_e('Top devices', $this->text_domain); ?></h4>
                     <ol data-your-share-analytics-top="devices"></ol>
                     <p class="description" data-your-share-analytics-top-empty="devices" hidden><?php esc_html_e('Device insights will appear after visitors interact with share buttons.', $this->text_domain); ?></p>
                 </div>
