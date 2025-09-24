@@ -48,6 +48,23 @@
   grid-column: 1 / -1;
 }
 
+.your-share-size-control {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.your-share-size-control input[type="range"] {
+  flex: 1 1 auto;
+}
+
+.your-share-size-control output {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+}
+
 .your-share-field-stack {
   display: grid;
   gap: 0.75rem;
