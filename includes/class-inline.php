@@ -205,7 +205,8 @@ class Inline
             return $content;
         }
 
-        $options = $this->options->all();
+        $options  = $this->options->all();
+        $defaults = $this->options->defaults();
         $display = $this->get_choice_meta($post->ID, self::META_DISPLAY);
         $force_show = ($display === 'show');
 
@@ -225,7 +226,14 @@ class Inline
             return $content;
         }
 
-        $atts = [];
+        $size_value = $options['share_size'] ?? ($defaults['share_size'] ?? 50);
+        if (!is_numeric($size_value)) {
+            $size_value = $defaults['share_size'] ?? 50;
+        }
+
+        $atts = [
+            'size' => max(0, min(100, (int) round((float) $size_value))),
+        ];
 
         $counts_badges = $this->get_choice_meta($post->ID, self::META_COUNTS_BADGES);
         if ($counts_badges === 'show') {
@@ -266,7 +274,6 @@ class Inline
             $atts['networks'] = implode(',', $inline_networks);
         }
 
-        $defaults      = $this->options->defaults();
         $inline_align  = $options['share_inline_align'] ?? $defaults['share_inline_align'];
         $align_choices = ['left', 'center', 'right', 'space-between'];
 

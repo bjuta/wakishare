@@ -26,7 +26,7 @@ class Options
         $defaults = [
             'share_brand_colors'        => 1,
             'share_style'               => 'solid',
-            'share_size'                => 'md',
+            'share_size'                => 50,
             'share_labels'              => 'auto',
             'share_align'               => 'left',
             'share_inline_align'        => 'left',
@@ -117,6 +117,11 @@ class Options
         $defaults = $this->defaults();
         $options  = wp_parse_args($stored, $defaults);
 
+        $options['share_size'] = $this->normalize_share_size_value(
+            $options['share_size'],
+            (int) $defaults['share_size']
+        );
+
         $options['share_networks_default'] = $this->normalize_networks($options['share_networks_default']);
         if (!in_array($options['share_align'], ['left', 'center', 'right', 'space-between'], true)) {
             $options['share_align'] = $defaults['share_align'];
@@ -184,8 +189,10 @@ class Options
         $output['share_brand_colors'] = !empty($input['share_brand_colors']) ? 1 : 0;
         $output['share_style']        = in_array($input['share_style'] ?? '', ['solid', 'outline', 'ghost'], true)
             ? $input['share_style'] : $defaults['share_style'];
-        $output['share_size']         = in_array($input['share_size'] ?? '', ['sm', 'md', 'lg'], true)
-            ? $input['share_size'] : $defaults['share_size'];
+        $output['share_size']         = $this->normalize_share_size_value(
+            $input['share_size'] ?? $defaults['share_size'],
+            (int) $defaults['share_size']
+        );
         $output['share_labels']       = in_array($input['share_labels'] ?? '', ['auto', 'show', 'hide'], true)
             ? $input['share_labels'] : $defaults['share_labels'];
         $alignment_choices = ['left', 'center', 'right', 'space-between'];
@@ -539,5 +546,44 @@ class Options
         }
 
         return $matrix;
+    }
+
+    private function normalize_share_size_value($value, int $fallback = 50): int
+    {
+        $map = [
+            'sm' => 0,
+            'md' => 50,
+            'lg' => 100,
+        ];
+
+        if (is_string($value)) {
+            $key = strtolower(trim($value));
+
+            if ($key === '') {
+                return $fallback;
+            }
+
+            if (isset($map[$key])) {
+                return $map[$key];
+            }
+
+            if (!is_numeric($value)) {
+                return $fallback;
+            }
+        }
+
+        if (!is_numeric($value)) {
+            return $fallback;
+        }
+
+        $normalized = (int) round((float) $value);
+
+        if ($normalized < 0) {
+            $normalized = 0;
+        } elseif ($normalized > 100) {
+            $normalized = 100;
+        }
+
+        return $normalized;
     }
 }
