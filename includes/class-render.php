@@ -107,13 +107,18 @@ class Render
 
         $visible_limit = count($networks);
 
+        [$size_class, $size_style] = $this->resolve_size_styles($atts['size'] ?? ($opts['share_size'] ?? ''));
+
         $classes = [
             'waki-share',
-            'waki-size-' . sanitize_html_class($atts['size'] ?? 'md'),
             'waki-style-' . sanitize_html_class($atts['style'] ?? 'solid'),
             'waki-labels-' . sanitize_html_class($atts['labels'] ?? 'auto'),
             'waki-share-placement-' . sanitize_html_class($placement),
         ];
+
+        if ($size_class !== '') {
+            $classes[] = $size_class;
+        }
 
         if (!empty($atts['brand']) && (string) $atts['brand'] === '1') {
             $classes[] = 'is-brand';
@@ -150,6 +155,10 @@ class Render
         $style_inline = sprintf('--waki-gap:%dpx;--waki-radius:%dpx;', $gap, $radius);
         $badge_radius = absint($opts['counts_badge_radius'] ?? $defaults['counts_badge_radius'] ?? 0);
         $style_inline .= sprintf('--waki-count-radius:%dpx;', $badge_radius);
+
+        if ($size_style !== '') {
+            $style_inline .= $size_style;
+        }
 
         if ($placement === 'floating') {
             $classes[]    = 'waki-share-floating';
@@ -469,18 +478,27 @@ class Render
             $radius = absint($defaults['share_radius']);
         }
 
+        [$size_class, $size_style] = $this->resolve_size_styles($size);
+
         $classes = [
             'waki-share',
             'waki-follow',
             'waki-share-inline',
-            'waki-size-' . sanitize_html_class($size),
             'waki-style-' . sanitize_html_class($style),
             'waki-labels-' . sanitize_html_class($labels),
             'align-' . sanitize_html_class($align),
             $brand === '1' ? 'is-brand' : 'is-mono',
         ];
 
+        if ($size_class !== '') {
+            $classes[] = $size_class;
+        }
+
         $style_inline = sprintf('--waki-gap:%dpx;--waki-radius:%dpx;', $gap, $radius);
+
+        if ($size_style !== '') {
+            $style_inline .= $size_style;
+        }
 
         $has_links = false;
 
@@ -659,7 +677,7 @@ class Render
             'networks'     => '',
             'labels'       => $options['share_labels'] ?? 'auto',
             'style'        => $options['share_style'] ?? 'solid',
-            'size'         => $options['share_size'] ?? 'md',
+            'size'         => $options['share_size'] ?? 50,
             'align'        => $options['share_align'] ?? 'left',
             'brand'        => !empty($options['share_brand_colors']) ? '1' : '0',
             'utm_campaign' => '',
@@ -694,7 +712,7 @@ class Render
         $defaults = [
             'networks' => '',
             'style'    => $options['share_style'] ?? 'solid',
-            'size'     => $options['share_size'] ?? 'md',
+            'size'     => $options['share_size'] ?? 50,
             'align'    => $options['share_align'] ?? 'left',
             'brand'    => !empty($options['share_brand_colors']) ? '1' : '0',
             'labels'   => 'show',
@@ -717,6 +735,90 @@ class Render
         }
 
         return $atts;
+    }
+
+    private function resolve_size_styles($value): array
+    {
+        $presets = [
+            'sm' => 'waki-size-sm',
+            'md' => 'waki-size-md',
+            'lg' => 'waki-size-lg',
+        ];
+
+        if (is_string($value)) {
+            $key = strtolower(trim($value));
+            if (isset($presets[$key])) {
+                return [$presets[$key], ''];
+            }
+
+            if (!is_numeric($value)) {
+                $value = $this->options->defaults()['share_size'] ?? 50;
+            }
+        }
+
+        if (!is_numeric($value)) {
+            $value = $this->options->defaults()['share_size'] ?? 50;
+        }
+
+        $numeric = (int) round((float) $value);
+
+        if ($numeric < 0) {
+            $numeric = 0;
+        } elseif ($numeric > 100) {
+            $numeric = 100;
+        }
+
+        return ['waki-size-custom', $this->build_size_style($numeric)];
+    }
+
+    private function build_size_style(int $value): string
+    {
+        $ratio = max(0, min(100, $value)) / 100;
+
+        $min = [
+            'height' => 2.25,
+            'padding' => 0.75,
+            'gap' => 0.4,
+            'label' => 0.8,
+            'button' => 0.8,
+        ];
+
+        $max = [
+            'height' => 3.25,
+            'padding' => 1.25,
+            'gap' => 0.75,
+            'label' => 0.95,
+            'button' => 1.0,
+        ];
+
+        $height = $min['height'] + ($max['height'] - $min['height']) * $ratio;
+        $padding = $min['padding'] + ($max['padding'] - $min['padding']) * $ratio;
+        $gap = $min['gap'] + ($max['gap'] - $min['gap']) * $ratio;
+        $label = $min['label'] + ($max['label'] - $min['label']) * $ratio;
+        $button = $min['button'] + ($max['button'] - $min['button']) * $ratio;
+
+        return sprintf(
+            '--waki-pill-height:%srem;--waki-pill-padding:%srem;--waki-content-gap:%srem;--waki-label-font-size:%srem;--waki-button-font-size:%srem;',
+            $this->format_size_dimension($height),
+            $this->format_size_dimension($padding),
+            $this->format_size_dimension($gap),
+            $this->format_size_dimension($label),
+            $this->format_size_dimension($button)
+        );
+    }
+
+    private function format_size_dimension(float $value): string
+    {
+        $formatted = round($value, 3);
+
+        $string = sprintf('%.3f', $formatted);
+        $string = rtrim(rtrim($string, '0'), '.');
+
+        if ($string === '') {
+            $string = '0';
+        }
+
+        return $string;
     }
 
     private function filter_share_attributes(array $atts): array

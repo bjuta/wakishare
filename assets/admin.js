@@ -29,6 +29,7 @@
     setupTabs(root);
     setupNetworkPicker(root);
     setupReactionPicker(root);
+    setupShareSizeControl(root);
     setupShortcodePreview(root);
     setupFollowShortcodePreview(root);
     setupUtmPreview(root);
@@ -724,6 +725,88 @@
     activateTab(initial, false);
   }
 
+  function setupShareSizeControl(root){
+    var controls = qsa(root, '[data-your-share-size-control]');
+    if (!controls.length){
+      return;
+    }
+
+    function clamp(value){
+      var number = parseFloat(value);
+      if (!isFinite(number)){
+        number = 50;
+      }
+      number = Math.round(number);
+      if (number < 0){
+        number = 0;
+      }
+      if (number > 100){
+        number = 100;
+      }
+      return number;
+    }
+
+    function formatHeight(value){
+      var ratio = clamp(value) / 100;
+      var min = 2.25;
+      var max = 3.25;
+      var height = min + (max - min) * ratio;
+      var text = height.toFixed(2);
+      if (text.indexOf('.') !== -1){
+        text = text.replace(/0+$/, '').replace(/\.$/, '');
+      }
+      return text;
+    }
+
+    function formatTemplate(template, label, height){
+      var result = template;
+      result = result.split('%1$s').join(label);
+      result = result.split('%2$s').join(height);
+      result = result.split('%1$S').join(label);
+      result = result.split('%2$S').join(height);
+      return result;
+    }
+
+    controls.forEach(function(container){
+      var input = qs(container, '[data-your-share-size-input]');
+      if (!input){
+        return;
+      }
+
+      var output = qs(container, '[data-your-share-size-output]');
+
+      function describe(value){
+        var numeric = clamp(value);
+        var small = container.getAttribute('data-label-small') || 'Small';
+        var medium = container.getAttribute('data-label-medium') || 'Medium';
+        var large = container.getAttribute('data-label-large') || 'Large';
+        var template = container.getAttribute('data-label-template') || '%1$s · %2$s rem';
+        var label = medium;
+        if (numeric <= 33){
+          label = small;
+        } else if (numeric >= 67){
+          label = large;
+        }
+        var height = formatHeight(numeric);
+        return formatTemplate(template, label, height);
+      }
+
+      function render(){
+        var value = clamp(input.value);
+        input.value = value;
+        var description = describe(value);
+        if (output){
+          output.textContent = description;
+        }
+        input.setAttribute('aria-valuetext', description);
+      }
+
+      input.addEventListener('input', render);
+      input.addEventListener('change', render);
+      render();
+    });
+  }
+
   function setupNetworkPicker(root){
     qsa(root, '[data-your-share-networks]').forEach(function(picker){
       var hidden = qs(picker, '[data-your-share-network-input]');
@@ -919,14 +1002,14 @@
     }
     var networksInput = qs(root, '[data-your-share-network-input][name$="[share_networks_default]"]');
     var styleSelect = qs(root, '[data-your-share-shortcode-prop="style"]');
-    var sizeSelect = qs(root, '[data-your-share-shortcode-prop="size"]');
+    var sizeInput = qs(root, '[data-your-share-shortcode-prop="size"]');
     var labelsSelect = qs(root, '[data-your-share-shortcode-prop="labels"]');
     var alignSelect = qs(root, '[data-your-share-shortcode-prop="align"]');
     var brandToggle = qs(root, '[data-your-share-shortcode-prop="brand"]');
 
     var networks = networksInput ? networksInput.value.trim() : '';
     var style = styleSelect ? styleSelect.value : 'solid';
-    var size = sizeSelect ? sizeSelect.value : 'md';
+    var size = sizeInput ? sizeInput.value : '50';
     var labels = labelsSelect ? labelsSelect.value : 'auto';
     var align = alignSelect ? alignSelect.value : 'left';
     var brand = '0';
@@ -964,7 +1047,7 @@
     var defaults = {
       networks: container.getAttribute('data-default-networks') || '',
       style: container.getAttribute('data-default-style') || 'solid',
-      size: container.getAttribute('data-default-size') || 'md',
+      size: container.getAttribute('data-default-size') || '50',
       align: container.getAttribute('data-default-align') || 'left',
       brand: container.getAttribute('data-default-brand') || '1',
       labels: container.getAttribute('data-default-labels') || 'show'

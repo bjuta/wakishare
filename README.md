@@ -38,7 +38,7 @@ The `[your_share]` shortcode (alias `[waki_share]`) mirrors the Share Suite shar
 | --- | --- | --- |
 | `networks` | comma-separated slugs | Override the network order. |
 | `style` | `solid`, `outline`, `ghost` | Override button style. |
-| `size` | `sm`, `md`, `lg` | Override button size. |
+| `size` | `sm`, `md`, `lg`, or `0-100` | Override button size. |
 | `labels` | `auto`, `show`, `hide` | Control label visibility. |
 | `align` | `left`, `center`, `right`, `space-between` | Control alignment. |
 | `brand` | `1` or `0` | Enable/disable brand colours. |
@@ -74,7 +74,7 @@ Outputs profile buttons (alias `[waki_follow]`):
 | --- | --- | --- |
 | `networks` | comma-separated slugs | Override button order (slugs: `x`, `instagram`, `facebook-page`, `tiktok`, `youtube`, `linkedin`). |
 | `style` | `solid`, `outline`, `ghost` | Button style. |
-| `size` | `sm`, `md`, `lg` | Button size. |
+| `size` | `sm`, `md`, `lg`, or `0-100` | Button size. |
 | `align` | `left`, `center`, `right`, `space-between` | Control alignment. |
 | `brand` | `1` or `0` | Enable/disable brand colours. |
 | `labels` | `show`, `hide`, `auto` | Label visibility (default `show`). |

@@ -827,6 +827,13 @@ class Admin
     public function field_share_design(): void
     {
         $values = $this->values();
+        $size_value   = (int) ($values['share_size'] ?? 50);
+        $size_value   = max(0, min(100, $size_value));
+        $size_display = $this->format_share_size_display($size_value);
+        $size_small   = esc_attr__('Small', $this->text_domain);
+        $size_medium  = esc_attr__('Medium', $this->text_domain);
+        $size_large   = esc_attr__('Large', $this->text_domain);
+        $size_template = esc_attr__('%1$s · %2$s rem', $this->text_domain);
         ?>
         <div class="your-share-field-grid">
             <label for="<?php echo esc_attr($this->field_id('share_style')); ?>">
@@ -839,11 +846,28 @@ class Admin
             </label>
             <label for="<?php echo esc_attr($this->field_id('share_size')); ?>">
                 <span><?php esc_html_e('Size', $this->text_domain); ?></span>
-                <select id="<?php echo esc_attr($this->field_id('share_size')); ?>" name="<?php echo esc_attr($this->name('share_size')); ?>" data-your-share-shortcode-prop="size" data-your-share-follow-prop="size">
-                    <option value="sm" <?php selected($values['share_size'], 'sm'); ?>><?php esc_html_e('Small', $this->text_domain); ?></option>
-                    <option value="md" <?php selected($values['share_size'], 'md'); ?>><?php esc_html_e('Medium', $this->text_domain); ?></option>
-                    <option value="lg" <?php selected($values['share_size'], 'lg'); ?>><?php esc_html_e('Large', $this->text_domain); ?></option>
-                </select>
+                <div
+                    class="your-share-size-control"
+                    data-your-share-size-control
+                    data-label-small="<?php echo $size_small; ?>"
+                    data-label-medium="<?php echo $size_medium; ?>"
+                    data-label-large="<?php echo $size_large; ?>"
+                    data-label-template="<?php echo $size_template; ?>"
+                >
+                    <input
+                        type="range"
+                        id="<?php echo esc_attr($this->field_id('share_size')); ?>"
+                        name="<?php echo esc_attr($this->name('share_size')); ?>"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value="<?php echo esc_attr($size_value); ?>"
+                        data-your-share-shortcode-prop="size"
+                        data-your-share-follow-prop="size"
+                        data-your-share-size-input
+                    >
+                    <output for="<?php echo esc_attr($this->field_id('share_size')); ?>" data-your-share-size-output><?php echo esc_html($size_display); ?></output>
+                </div>
             </label>
             <label for="<?php echo esc_attr($this->field_id('share_labels')); ?>">
                 <span><?php esc_html_e('Label display', $this->text_domain); ?></span>
@@ -1716,5 +1740,40 @@ class Admin
     private function field_id(string $field): string
     {
         return 'your-share-' . str_replace('_', '-', $field);
+    }
+
+    private function format_share_size_display(int $value): string
+    {
+        $value = max(0, min(100, $value));
+        $ratio = $value / 100;
+
+        $height_min = 2.25;
+        $height_max = 3.25;
+        $height     = $height_min + ($height_max - $height_min) * $ratio;
+        $height_text = $this->format_decimal_string($height);
+
+        $small  = __('Small', $this->text_domain);
+        $medium = __('Medium', $this->text_domain);
+        $large  = __('Large', $this->text_domain);
+
+        if ($value <= 33) {
+            $label = $small;
+        } elseif ($value >= 67) {
+            $label = $large;
+        } else {
+            $label = $medium;
+        }
+
+        $template = __('%1$s · %2$s rem', $this->text_domain);
+
+        return sprintf($template, $label, $height_text);
+    }
+
+    private function format_decimal_string(float $value): string
+    {
+        $string = sprintf('%.2f', $value);
+        $string = rtrim(rtrim($string, '0'), '.');
+
+        return $string === '' ? '0' : $string;
     }
 }
