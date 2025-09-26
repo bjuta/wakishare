@@ -171,8 +171,9 @@ class Render
             $classes[] = 'align-' . sanitize_html_class($context['align'] ?? 'left');
         }
 
-        $title = $share_ctx['title'];
-        $base  = $share_ctx['url'];
+        $title      = $share_ctx['share_title'] ?? $share_ctx['title'];
+        $share_text = $share_ctx['share_text'];
+        $base       = $share_ctx['url'];
 
         $counts_state = $this->prepare_counts_state($opts, $networks, $share_ctx);
         $post_id      = $share_ctx['post'] instanceof \WP_Post ? (int) $share_ctx['post']->ID : 0;
@@ -204,7 +205,7 @@ class Render
                 $href = '#';
             } else {
                 $utm_url = $this->utm->append($base, $network, $share_ctx['post'], $atts);
-                $href    = $this->build_share_url($network, $utm_url, $title);
+                $href    = $this->build_share_url($network, $utm_url, $title, $share_text);
             }
 
             $count_value = $counts_state['networks'][$network]['total'] ?? 0;
@@ -918,19 +919,23 @@ class Render
 
         $context = $this->current_share_context([]);
 
-        $title   = $context['title'];
-        $url     = $context['url'];
-        $excerpt = $context['excerpt'];
-        $image   = $context['image'];
-        $post    = $context['post'];
+        $title     = $context['title'];
+        $url       = $context['url'];
+        $excerpt   = $context['excerpt'];
+        $image     = $context['image'];
+        $post      = $context['post'];
+        $site_name = $context['site_name'];
 
         if ($title === '' && $url === '') {
             return;
         }
 
-        $site_name = get_bloginfo('name', 'display');
-        $type      = $post instanceof \WP_Post ? 'article' : 'website';
-        $card      = $image !== '' ? 'summary_large_image' : 'summary';
+        if ($site_name === '') {
+            $site_name = get_bloginfo('name', 'display');
+        }
+
+        $type = $post instanceof \WP_Post ? 'article' : 'website';
+        $card = $image !== '' ? 'summary_large_image' : 'summary';
 
         $metadata = [
             [
@@ -1031,8 +1036,13 @@ class Render
             $url = home_url('/');
         }
 
-        $excerpt = '';
-        $image   = '';
+        $excerpt   = '';
+        $image     = '';
+        $site_name = get_bloginfo('name', 'display');
+
+        if (!is_string($site_name)) {
+            $site_name = '';
+        }
 
         if ($post instanceof \WP_Post) {
             if (has_excerpt($post)) {
@@ -1063,12 +1073,53 @@ class Render
             $image = get_site_icon_url(512);
         }
 
+        $title = wp_strip_all_tags($title);
+        $title = trim(preg_replace('/\s+/', ' ', $title));
+
+        $share_title = $title;
+
+        if ($site_name !== '') {
+            $pattern = sprintf('/\s*\|\s*%s$/iu', preg_quote($site_name, '/'));
+            $maybe   = preg_replace($pattern, '', $share_title);
+
+            if (is_string($maybe) && $maybe !== '') {
+                $share_title = trim(preg_replace('/\s+/', ' ', $maybe));
+            }
+        }
+
+        if ($share_title === '') {
+            $share_title = $title;
+        }
+
+        $share_text = $share_title;
+
+        if ($excerpt !== '') {
+            $share_text .= ' — ' . $excerpt;
+        }
+
+        if ($site_name !== '' && ($share_text === '' || stripos($share_text, $site_name) === false)) {
+            if ($share_text !== '') {
+                $share_text .= ' | ' . $site_name;
+            } else {
+                $share_text = $site_name;
+            }
+        }
+
+        $share_text = trim(preg_replace('/\s+/', ' ', $share_text));
+
+        if ($share_text !== '') {
+            $share_text = wp_html_excerpt($share_text, 280, '…');
+        }
+
         return [
             'post'  => $post,
-            'title' => wp_strip_all_tags($title),
+            'title' => $title,
             'url'   => $url,
-            'excerpt' => $excerpt,
-            'image'   => $image,
+            'excerpt'   => $excerpt,
+            'image'     => $image,
+            'site_name' => $site_name,
+            'share_title' => $share_title,
+            'share_text' => $share_text,
         ];
     }
 
@@ -1291,36 +1342,38 @@ class Render
         return number_format_i18n($value);
     }
 
-    private function build_share_url(string $network, string $base_url, string $title): string
+    private function build_share_url(string $network, string $base_url, string $title, string $share_text): string
     {
-        $url   = rawurlencode($base_url);
-        $title = rawurlencode($title);
+        $url      = rawurlencode($base_url);
+        $raw_text = $share_text !== '' ? $share_text : $title;
+        $title    = rawurlencode($title);
+        $text     = rawurlencode($raw_text);
 
         switch ($network) {
             case 'facebook':
                 return "https://www.facebook.com/sharer/sharer.php?u={$url}";
             case 'x':
-                return "https://twitter.com/intent/tweet?text={$title}&url={$url}";
+                return "https://twitter.com/intent/tweet?text={$text}&url={$url}";
             case 'threads':
-                return "https://www.threads.net/intent/post?text={$title}%20{$url}";
+                return "https://www.threads.net/intent/post?text={$text}%20{$url}";
             case 'bluesky':
-                return "https://bsky.app/intent/compose?text={$title}%20{$url}";
+                return "https://bsky.app/intent/compose?text={$text}%20{$url}";
             case 'whatsapp':
-                return "https://wa.me/?text={$title}%20{$url}";
+                return "https://wa.me/?text={$text}%20{$url}";
             case 'telegram':
-                return "https://t.me/share/url?url={$url}&text={$title}";
+                return "https://t.me/share/url?url={$url}&text={$text}";
             case 'line':
                 return "https://social-plugins.line.me/lineit/share?url={$url}";
             case 'linkedin':
                 return "https://www.linkedin.com/sharing/share-offsite/?url={$url}";
             case 'pinterest':
-                return "https://www.pinterest.com/pin/create/button/?url={$url}&description={$title}";
+                return "https://www.pinterest.com/pin/create/button/?url={$url}&description={$text}";
             case 'reddit':
                 return "https://www.reddit.com/submit?url={$url}&title={$title}";
             case 'tumblr':
                 return "https://www.tumblr.com/widgets/share/tool?canonicalUrl={$url}&title={$title}";
             case 'mastodon':
-                return "https://mastodon.social/share?text={$title}%20{$url}";
+                return "https://mastodon.social/share?text={$text}%20{$url}";
             case 'vk':
                 return "https://vk.com/share.php?url={$url}&title={$title}";
             case 'weibo':
@@ -1334,7 +1387,7 @@ class Render
             case 'flipboard':
                 return "https://share.flipboard.com/bookmarklet/popout?v=2&title={$title}&url={$url}";
             case 'buffer':
-                return "https://buffer.com/add?text={$title}&url={$url}";
+                return "https://buffer.com/add?text={$text}&url={$url}";
             case 'mix':
                 return "https://mix.com/mixit?url={$url}";
             case 'evernote':
@@ -1344,7 +1397,7 @@ class Render
             case 'hacker-news':
                 return "https://news.ycombinator.com/submitlink?u={$url}&t={$title}";
             case 'email':
-                return "mailto:?subject={$title}&body={$title}%20—%20{$url}";
+                return "mailto:?subject={$title}&body={$text}%0A%0A{$url}";
             default:
                 return $base_url;
         }
