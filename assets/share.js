@@ -10,6 +10,7 @@
   var deferredSdkLoaders = [];
   var sheetConfettiKey = 'yourShareSheetConfetti';
   var sheetCelebrated = false;
+  var shareSheetBreakpointFallback = 768;
 
   var overlaySelectors = Array.isArray(mediaConfig.selectors) ? mediaConfig.selectors : [];
   overlaySelectors = overlaySelectors.map(function(selector){
@@ -1524,6 +1525,64 @@
     });
   }
 
+  function getShareSheetBreakpoint(wrapper){
+    var fallback = shareSheetBreakpointFallback;
+    if (!wrapper){
+      return fallback;
+    }
+    try {
+      var style = window.getComputedStyle(wrapper);
+      var raw = (style.getPropertyValue('--waki-sheet-breakpoint') || '').trim();
+      if (raw){
+        var parsed = parseInt(raw, 10);
+        if (!isNaN(parsed)){
+          return parsed;
+        }
+      }
+    } catch (error) {
+      // ignore style access issues
+    }
+    return fallback;
+  }
+
+  function shouldUseShareSheet(wrapper){
+    var viewport = window.innerWidth || document.documentElement.clientWidth || 0;
+    var breakpoint = getShareSheetBreakpoint(wrapper);
+    return viewport <= breakpoint;
+  }
+
+  function setShareSheetMode(wrapper){
+    if (!wrapper || !wrapper.querySelector){
+      return;
+    }
+    var panel = wrapper.querySelector('[data-your-share-extra]');
+    if (!panel){
+      wrapper.classList.remove('is-sheet-mode');
+      wrapper.classList.remove('is-popover-mode');
+      return;
+    }
+    var useSheet = shouldUseShareSheet(wrapper);
+    wrapper.classList.toggle('is-sheet-mode', useSheet);
+    wrapper.classList.toggle('is-popover-mode', !useSheet);
+    panel.setAttribute('aria-modal', useSheet ? 'true' : 'false');
+  }
+
+  function updateShareSheetModes(){
+    var wrappers = document.querySelectorAll('.waki-share');
+    if (!wrappers.length){
+      return;
+    }
+    Array.prototype.forEach.call(wrappers, function(wrapper){
+      setShareSheetMode(wrapper);
+    });
+    if (sheetState && sheetState.wrapper){
+      var shouldBeSheet = sheetState.wrapper.classList.contains('is-sheet-mode');
+      if ((sheetState.mode === 'sheet' && !shouldBeSheet) || (sheetState.mode === 'popover' && shouldBeSheet)){
+        closeShareSheet(sheetState, false);
+      }
+    }
+  }
+
   function updateFloatingVisibility(){
     var shareBars = document.querySelectorAll('.waki-share-floating');
     var reactionBars = document.querySelectorAll('.waki-reactions-floating');
@@ -1560,6 +1619,9 @@
         state.backdrop.parentNode.removeChild(state.backdrop);
       }
     }
+    if (state.mode === 'popover' && state.onPointerDown){
+      document.removeEventListener('pointerdown', state.onPointerDown);
+    }
     if (state.panel){
       state.panel.setAttribute('hidden', 'hidden');
       state.panel.setAttribute('aria-hidden', 'true');
@@ -1590,6 +1652,8 @@
     if (!panel){
       return;
     }
+    setShareSheetMode(wrapper);
+    var useSheet = wrapper.classList.contains('is-sheet-mode');
     if (sheetState && sheetState.button === button){
       closeShareSheet(sheetState, true);
       return;
@@ -1610,25 +1674,39 @@
     wrapper.classList.add('is-sheet-active');
 
     var previousFocus = document.activeElement;
-    var backdrop = document.createElement('div');
-    backdrop.className = 'waki-share-sheet-backdrop';
-    backdrop.setAttribute('data-your-share-sheet-backdrop', '1');
-    document.body.appendChild(backdrop);
-
     var state = {
       wrapper: wrapper,
       button: button,
       panel: panel,
-      backdrop: backdrop,
+      backdrop: null,
       previousFocus: previousFocus,
       onKeydown: null,
-      onBackdrop: null
+      onBackdrop: null,
+      onPointerDown: null,
+      mode: useSheet ? 'sheet' : 'popover'
     };
 
-    state.onBackdrop = function(event){
-      event.preventDefault();
-      closeShareSheet(state, true);
-    };
+    if (useSheet){
+      var backdrop = document.createElement('div');
+      backdrop.className = 'waki-share-sheet-backdrop';
+      backdrop.setAttribute('data-your-share-sheet-backdrop', '1');
+      document.body.appendChild(backdrop);
+      state.backdrop = backdrop;
+      state.onBackdrop = function(event){
+        event.preventDefault();
+        closeShareSheet(state, true);
+      };
+      backdrop.addEventListener('click', state.onBackdrop);
+    } else {
+      state.onPointerDown = function(event){
+        if (!panel.contains(event.target) && !button.contains(event.target)){
+          closeShareSheet(state, false);
+        }
+      };
+      window.setTimeout(function(){
+        document.addEventListener('pointerdown', state.onPointerDown);
+      }, 0);
+    }
 
     state.onKeydown = function(event){
       if (event.key === 'Escape' || event.key === 'Esc'){
@@ -1658,7 +1736,6 @@
       }
     };
 
-    backdrop.addEventListener('click', state.onBackdrop);
     document.addEventListener('keydown', state.onKeydown);
 
     sheetState = state;
@@ -1813,7 +1890,12 @@
     openPopup(href);
   });
 
-  window.addEventListener('resize', updateFloatingVisibility);
+  function handleResize(){
+    updateShareSheetModes();
+    updateFloatingVisibility();
+  }
+
+  window.addEventListener('resize', handleResize);
 
   function attachConsentListener(type){
     var onceHandler = function(){
@@ -1841,6 +1923,7 @@
 
   function onReady(){
     hydrateGeo();
+    updateShareSheetModes();
     updateFloatingVisibility();
     initReactions();
     initMediaOverlays();
