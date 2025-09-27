@@ -1,4 +1,4 @@
-.waki-share{--waki-gap:8px;--waki-radius:9999px;--waki-pill-height:2.75rem;--waki-pill-padding:.95rem;--waki-content-gap:.55rem;--icon-size:calc(var(--waki-pill-height)*0.5625);--waki-label-font-size:.875rem;--waki-button-font-size:.9rem;--optical-x:0px;--optical-y:0px;display:flex;flex-wrap:wrap;gap:var(--waki-gap);align-items:flex-start}
+.waki-share{--waki-gap:8px;--waki-radius:9999px;--waki-pill-height:2.75rem;--waki-pill-padding:.95rem;--waki-content-gap:.55rem;--waki-sheet-breakpoint:960px;--icon-size:calc(var(--waki-pill-height)*0.5625);--waki-label-font-size:.875rem;--waki-button-font-size:.9rem;--optical-x:0px;--optical-y:0px;display:flex;flex-wrap:wrap;gap:var(--waki-gap);align-items:flex-start}
 .waki-share.align-center{justify-content:center}
 .waki-share.align-right{justify-content:flex-end}
 .waki-share-inline.align-center .waki-share-row{justify-content:center}
@@ -110,9 +110,9 @@
 .waki-share .waki-count{display:inline-flex;align-items:center;justify-content:center;margin-left:0;padding:.15rem .45rem;border-radius:var(--waki-count-radius,9999px);font-size:.75rem;font-weight:600;line-height:1;flex:0 0 auto}
 .waki-style-solid .waki-count{background:rgba(255,255,255,.28);color:#fff}
 .waki-style-outline .waki-count,.waki-style-ghost .waki-count{background:rgba(17,24,39,.08);color:inherit}
-.waki-share-total{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.25rem;margin-right:0;margin-bottom:0;font-size:.9rem;font-weight:700;line-height:1.2;text-align:center}
-.waki-share-total .waki-total-label{font-weight:700}
-.waki-share-total .waki-total-value{font-size:1.35rem;font-weight:800;line-height:1.1}
+.waki-share-total{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:.2rem;margin-right:0;margin-bottom:0;font-size:.9rem;font-weight:700;line-height:1.15;text-align:left}
+.waki-share-total .waki-total-label{font-size:.72rem;font-weight:600;color:rgba(15,23,42,.65);text-transform:uppercase;letter-spacing:.32em}
+.waki-share-total .waki-total-value{font-size:clamp(2rem,3.4vw,2.75rem);font-weight:800;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:#0f172a}
 .waki-share-row{display:flex;flex-wrap:wrap;align-items:center;width:100%;gap:var(--waki-gap);flex:1 1 100%}
 .waki-share-inline .waki-share-row{gap:0;row-gap:var(--waki-gap)}
 .waki-share-inline .waki-share-row .waki-share-total{margin-right:var(--waki-gap)}
@@ -135,8 +135,6 @@
 .waki-share-meta-divider{width:1px;min-height:1.75rem;background:linear-gradient(180deg,rgba(148,163,184,.15),rgba(148,163,184,.45),rgba(148,163,184,.15));border-radius:9999px}
 .waki-share-prompt{font-size:.95rem;font-weight:700;line-height:1.2;color:#0f172a}
 .waki-share-total{align-items:flex-start}
-.waki-share-total .waki-total-value{font-size:1.6rem;font-weight:800}
-.waki-share-total .waki-total-label{font-size:.85rem;font-weight:600;color:#1f2937;text-transform:uppercase;letter-spacing:.05em}
 .waki-share-row+.waki-share-react-field{margin-top:var(--waki-gap);padding-top:var(--waki-gap);border-top:1px solid rgba(148,163,184,.2)}
 .waki-share-react-field{align-items:stretch}
 .waki-share-react-label{font-size:.9rem;text-transform:uppercase;letter-spacing:.05em}
@@ -148,7 +146,7 @@
 .is-neutral .waki-btn:hover{background:#e2e8f0;border-color:rgba(15,23,42,.16)}
 .is-neutral .waki-btn:active{background:#cbd5f5}
 .is-neutral .waki-btn .waki-icon__svg{color:inherit}
-.waki-count{min-width:2.25ch;justify-content:center;transition:opacity .2s ease,transform .2s ease;font-variant-numeric:tabular-nums}
+.waki-count{min-width:2.5ch;justify-content:center;transition:opacity .2s ease,transform .2s ease;font-variant-numeric:tabular-nums;font-size:.78rem;font-weight:700;letter-spacing:.05em;color:#0f172a;padding:.2rem .5rem;border-radius:var(--waki-count-radius,9999px)}
 .waki-count[data-visible="0"]{opacity:0;transform:translateY(-4px) scale(.9);pointer-events:none}
 .waki-count[data-visible="1"]{opacity:1;transform:none}
 .waki-reactions{position:relative;align-items:flex-start}
@@ -169,8 +167,10 @@
 .waki-reaction.is-first-reaction::after{content:"+1";position:absolute;inset-inline-start:50%;inset-block-start:-.25rem;transform:translate(-50%,-60%) scale(.85);background:#2563eb;color:#fff;padding:.1rem .45rem;border-radius:9999px;font-size:.7rem;font-weight:700;box-shadow:0 8px 18px rgba(37,99,235,.32);animation:waki-reaction-pop .6s ease forwards;pointer-events:none}
 @keyframes waki-reaction-pop{0%{opacity:0;transform:translate(-50%,-10%) scale(.6)}45%{opacity:1;transform:translate(-50%,-95%) scale(1)}100%{opacity:0;transform:translate(-50%,-65%) scale(.9)}}
 .waki-reaction.has-count .waki-reaction-count{font-weight:700}
-.waki-share-extra{position:fixed;left:50%;transform:translate(-50%,24px);bottom:calc(max(env(safe-area-inset-bottom,0px),16px));background:#fff;border-radius:20px;border:1px solid rgba(15,23,42,.1);box-shadow:0 25px 65px rgba(15,23,42,.28);padding:1.25rem;max-width:min(480px,calc(100vw - 2.5rem));width:calc(100% - 2.5rem);opacity:0;visibility:hidden;transition:opacity .25s ease,transform .25s ease,visibility .25s ease;z-index:10001}
-.waki-share.is-sheet-active .waki-share-extra{opacity:1;visibility:visible;transform:translate(-50%,0)}
+.waki-share.is-sheet-mode .waki-share-extra{position:fixed;left:50%;transform:translate(-50%,24px);bottom:calc(max(env(safe-area-inset-bottom,0px),16px));background:#fff;border-radius:20px;border:1px solid rgba(15,23,42,.1);box-shadow:0 25px 65px rgba(15,23,42,.28);padding:1.25rem;max-width:min(480px,calc(100vw - 2.5rem));width:calc(100% - 2.5rem);opacity:0;visibility:hidden;transition:opacity .25s ease,transform .25s ease,visibility .25s ease;z-index:10001}
+.waki-share.is-sheet-mode.is-sheet-active .waki-share-extra{opacity:1;visibility:visible;transform:translate(-50%,0)}
+.waki-share.is-popover-mode .waki-share-extra{position:absolute;inset-inline-end:0;inset-block-start:100%;margin-top:0;transform:translateY(calc(var(--waki-gap) + 12px));background:#fff;border-radius:18px;border:1px solid rgba(15,23,42,.12);box-shadow:0 24px 55px rgba(15,23,42,.16);padding:1.1rem;max-width:min(420px,calc(100vw - 4rem));width:min(420px,calc(100% - 2rem));opacity:0;visibility:hidden;pointer-events:none;transition:opacity .22s ease,transform .22s ease,visibility .22s ease;z-index:60}
+.waki-share.is-popover-mode.is-sheet-active .waki-share-extra{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(calc(var(--waki-gap)/2))}
 .waki-share-sheet-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(2px);z-index:10000;animation:waki-sheet-backdrop .25s ease forwards}
 @keyframes waki-sheet-backdrop{from{opacity:0}to{opacity:1}}
 .waki-share-confetti{position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:10002}
