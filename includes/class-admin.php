@@ -1419,7 +1419,17 @@ class Admin
                             <span class="your-share-analytics__summary-label"><?php esc_html_e('Reactions', $this->text_domain); ?></span>
                             <span data-your-share-analytics-total="reaction">0</span>
                         </div>
-                        <div class="your-share-analytics__updated" data-your-share-analytics-updated></div>
+                        <div class="your-share-analytics__updated" data-your-share-analytics-updated aria-live="polite"></div>
+                        <div class="your-share-analytics__actions">
+                            <button
+                                type="button"
+                                class="button button-secondary your-share-analytics__refresh"
+                                data-your-share-analytics-refresh
+                                data-loading-label="<?php esc_attr_e('Refreshing…', $this->text_domain); ?>"
+                            >
+                                <?php esc_html_e('Refresh data', $this->text_domain); ?>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="your-share-analytics__canvas">

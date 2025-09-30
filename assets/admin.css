@@ -468,6 +468,18 @@
   align-items: baseline;
 }
 
+.your-share-analytics__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+
+.your-share-analytics__refresh.is-busy {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .your-share-analytics__summary > div {
   display: flex;
   flex-direction: column;
@@ -589,6 +601,15 @@
 
   .your-share-analytics__summary {
     gap: 0.75rem;
+  }
+
+  .your-share-analytics__actions {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .your-share-analytics__actions .button {
+    width: 100%;
   }
 }
 
