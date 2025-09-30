@@ -210,8 +210,57 @@
       chart: null,
       activeQuickRange: '7',
       usingCustomRange: false,
-      data: null
+      data: null,
+      lastParams: null,
+      loading: false,
+      analyticsEnabled: adminConfig.analytics ? !!adminConfig.analytics.enabled : true,
+      hasLoaded: false,
+      visibilityHandlerAttached: false
     };
+    var refreshButton = qs(container, '[data-your-share-analytics-refresh]');
+    var refreshLoadingLabel = refreshButton ? refreshButton.getAttribute('data-loading-label') || '' : '';
+
+    function copyParams(params){
+      var copy = {};
+      if (!params){
+        return copy;
+      }
+      if (params.days){
+        copy.days = String(params.days);
+      }
+      if (params.start){
+        copy.start = params.start;
+      }
+      if (params.end){
+        copy.end = params.end;
+      }
+      return copy;
+    }
+
+    function setLoading(isLoading){
+      state.loading = !!isLoading;
+      container.classList.toggle('your-share-analytics--loading', state.loading);
+      if (!refreshButton){
+        return;
+      }
+      if (state.loading){
+        refreshButton.disabled = true;
+        refreshButton.classList.add('is-busy');
+        if (refreshLoadingLabel){
+          if (!refreshButton.hasAttribute('data-original-label')){
+            refreshButton.setAttribute('data-original-label', refreshButton.textContent);
+          }
+          refreshButton.textContent = refreshLoadingLabel;
+        }
+      } else {
+        refreshButton.classList.remove('is-busy');
+        if (refreshButton.hasAttribute('data-original-label')){
+          refreshButton.textContent = refreshButton.getAttribute('data-original-label');
+          refreshButton.removeAttribute('data-original-label');
+        }
+        refreshButton.disabled = !state.analyticsEnabled;
+      }
+    }
 
     function restRoot(){
       var rest = adminConfig.analytics && adminConfig.analytics.rest ? adminConfig.analytics.rest.root : '';
@@ -395,6 +444,7 @@
     }
 
     function setToolsEnabled(enabled){
+      state.analyticsEnabled = !!enabled;
       if (!tools){
         return;
       }
@@ -403,6 +453,9 @@
       });
       if (notice){
         notice.style.display = enabled ? 'none' : '';
+      }
+      if (refreshButton && !state.loading){
+        refreshButton.disabled = !state.analyticsEnabled;
       }
     }
 
@@ -435,6 +488,7 @@
       updateUpdated(data && data.generated_at ? data.generated_at : '');
       var enabled = !!(data && data.enabled);
       setToolsEnabled(enabled);
+      state.hasLoaded = true;
 
       var series = data && data.series ? data.series : null;
       if (!enabled || !series){
@@ -445,6 +499,10 @@
       renderChart(series);
 
       applyTopLists(data && data.top ? data.top : {});
+
+      if (refreshButton && !state.loading){
+        refreshButton.disabled = !state.analyticsEnabled;
+      }
 
       var rangeMeta = data && data.range ? data.range : null;
       if (rangeMeta){
@@ -491,12 +549,15 @@
     }
 
     function loadData(params){
+      if (state.loading){
+        return Promise.resolve();
+      }
       var rootUrl = restRoot();
       if (!rootUrl){
         if (emptyMessage){
           emptyMessage.hidden = false;
         }
-        return;
+        return Promise.resolve();
       }
       var headers = {};
       if (adminConfig.analytics && adminConfig.analytics.rest && adminConfig.analytics.rest.nonce){
@@ -505,8 +566,14 @@
       if (emptyMessage){
         emptyMessage.hidden = true;
       }
-      var url = rootUrl + '/analytics/report' + buildQuery(params);
-      fetch(url, {
+      var queryParams = copyParams(params);
+      if (!queryParams.days && !queryParams.start && !queryParams.end){
+        queryParams.days = state.activeQuickRange;
+      }
+      state.lastParams = copyParams(queryParams);
+      setLoading(true);
+      var url = rootUrl + '/analytics/report' + buildQuery(queryParams);
+      return fetch(url, {
         credentials: 'same-origin',
         headers: headers
       }).then(function(response){
@@ -521,7 +588,23 @@
           emptyMessage.hidden = false;
           emptyMessage.textContent = adminConfig.analytics && adminConfig.analytics.i18n ? (adminConfig.analytics.i18n.error || 'Unable to load analytics data.') : 'Unable to load analytics data.';
         }
+      }).finally(function(){
+        setLoading(false);
       });
+    }
+
+    function refreshData(forceParams){
+      if (state.loading){
+        return;
+      }
+      var params = forceParams ? copyParams(forceParams) : null;
+      if (!params){
+        params = state.lastParams ? copyParams(state.lastParams) : {};
+      }
+      if (!params.days && !params.start && !params.end){
+        params.days = state.activeQuickRange;
+      }
+      loadData(params);
     }
 
     function applyCustomRange(){
@@ -605,7 +688,22 @@
       });
     }
 
-    setToolsEnabled(adminConfig.analytics ? !!adminConfig.analytics.enabled : true);
+    if (refreshButton){
+      refreshButton.addEventListener('click', function(){
+        refreshData();
+      });
+    }
+
+    if (!state.visibilityHandlerAttached && typeof document !== 'undefined' && typeof document.addEventListener === 'function'){
+      state.visibilityHandlerAttached = true;
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState === 'visible' && state.hasLoaded && !state.loading){
+          refreshData();
+        }
+      });
+    }
+
+    setToolsEnabled(state.analyticsEnabled);
     setActiveRangeButton(state.activeQuickRange);
     loadData({ days: state.activeQuickRange });
   }
