@@ -169,6 +169,12 @@
     }
 
     var chartCanvas = qs(container, '[data-your-share-analytics-chart]');
+    var ChartConstructor = null;
+    if (typeof window.Chart === 'function') {
+      ChartConstructor = window.Chart;
+    } else if (window.Chart && typeof window.Chart.Chart === 'function') {
+      ChartConstructor = window.Chart.Chart;
+    }
     var emptyMessage = qs(container, '[data-your-share-analytics-empty]');
     var summaryShare = qs(container, '[data-your-share-analytics-total="share"]');
     var summaryReaction = qs(container, '[data-your-share-analytics-total="reaction"]');
@@ -192,7 +198,7 @@
       devices: qs(container, '[data-your-share-analytics-top-empty="devices"]')
     };
 
-    if (!chartCanvas || typeof window.Chart !== 'function'){
+    if (!chartCanvas || !ChartConstructor){
       if (emptyMessage){
         emptyMessage.hidden = false;
         emptyMessage.textContent = adminConfig.analytics && adminConfig.analytics.i18n ? (adminConfig.analytics.i18n.error || 'Unable to load analytics data.') : 'Unable to load analytics data.';
@@ -355,7 +361,7 @@
     function renderChart(seriesData){
       var config = datasetConfig(seriesData);
       if (!state.chart){
-        state.chart = new Chart(chartCanvas.getContext('2d'), {
+        state.chart = new ChartConstructor(chartCanvas.getContext('2d'), {
           type: 'line',
           data: config,
           options: {
