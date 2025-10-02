@@ -114,9 +114,10 @@
 .waki-share-total .waki-total-label{font-size:.72rem;font-weight:600;color:rgba(15,23,42,.65);text-transform:uppercase;letter-spacing:.32em}
 .waki-share-total .waki-total-value{font-size:clamp(2rem,3.4vw,2.75rem);font-weight:800;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:#0f172a}
 .waki-share-row{display:flex;flex-wrap:wrap;align-items:center;width:100%;gap:var(--waki-gap);flex:1 1 100%}
-.waki-share-inline{margin-inline:auto;width:min(100%,66.6667%)}
-.waki-share-inline .waki-share-row{gap:0;row-gap:var(--waki-gap)}
-.waki-share-inline .waki-share-row .waki-share-total{margin-right:var(--waki-gap)}
+.waki-share-inline{margin-inline:auto;width:fit-content;max-width:100%;align-items:center;padding:clamp(.75rem,1.5vw,1rem)}
+.waki-share-inline .waki-share-meta{flex:0 1 auto;width:auto;margin-bottom:0;gap:var(--waki-gap)}
+.waki-share-inline .waki-share-row{flex:1 1 auto;width:auto;min-width:0;display:flex;align-items:center;justify-content:flex-start;gap:var(--waki-gap);row-gap:var(--waki-gap)}
+.waki-share-inline .waki-share-row .waki-share-buttons{flex:0 0 auto}
 .waki-share-floating .waki-share-row{flex-direction:column;align-items:stretch;gap:var(--waki-gap)}
 .waki-share-row .waki-share-buttons{flex:1 1 auto}
 .waki-share-buttons{display:flex;flex-wrap:wrap;gap:var(--waki-gap);align-items:center}
